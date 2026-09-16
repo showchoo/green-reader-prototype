@@ -33,16 +33,15 @@ replace_once(
     "mark attempt generation",
 )
 
-# Reset is now a hard boundary for mark acquisition. Drop the latest frame as well so
-# an immediate post-reset tap cannot resolve against the frame that belonged to the
-# failed attempt; the next rendered AR frame repopulates latestFrame within moments.
+# v0.7.4/v0.7.5 insert logging reset fields between captureRequested and pendingMark,
+# so anchor directly on the final pendingMark/markMode pair produced by v0.8.2.
+# Reset is a hard boundary for mark acquisition. Drop latestFrame as well so an
+# immediate post-reset tap cannot resolve against the pre-reset camera frame.
 replace_once(
-    """        captureRequested = false
-        pendingMark = null
+    """        pendingMark = null
         markMode = 1
 """,
-    """        captureRequested = false
-        markAttemptToken += 1L
+    """        markAttemptToken += 1L
         pendingMark = null
         latestFrame = null
         markMode = 1
