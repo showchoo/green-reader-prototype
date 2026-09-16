@@ -4,7 +4,9 @@
 
     <application
         android:allowBackup="true"
-        android:label="Green Reader Prototype"
+        android:label="Green Reader"
+        android:icon="@drawable/ic_green_reader_icon"
+        android:roundIcon="@drawable/ic_green_reader_icon"
         android:theme="@style/Theme.GreenReader">
         <meta-data android:name="com.google.ar.core" android:value="required" />
         <activity
