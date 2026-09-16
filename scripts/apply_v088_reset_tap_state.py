@@ -50,17 +50,26 @@ replace_once(
 )
 
 # Backgrounding the app is another lifecycle boundary. Invalidate callbacks that may
-# already be queued from the GL thread and discard the pre-pause frame.
+# already be queued from the GL thread and discard the pre-pause frame. If a mark was
+# still incomplete, restore the correct target so the user can tap again after resume.
 replace_once(
-    """        scanning = false
-        pendingMark = null
+    """    override fun onPause() {
+        session?.pause()
         gl.onPause()
+        super.onPause()
+    }
 """,
-    """        scanning = false
+    """    override fun onPause() {
         markAttemptToken += 1L
         pendingMark = null
         latestFrame = null
+        if (ball == null || cup == null) {
+            markMode = if (ball == null) 1 else 2
+        }
+        session?.pause()
         gl.onPause()
+        super.onPause()
+    }
 """,
     "pause invalidates mark callbacks",
 )
