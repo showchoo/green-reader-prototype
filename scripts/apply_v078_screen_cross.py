@@ -20,39 +20,37 @@ main = replace_once(
 
 main = replace_once(
     main,
-    "        capturedCupScreen = null\n        showCamera()\n",
-    "        capturedCupScreen = null\n        capturedPositiveCrossScreen = null\n        showCamera()\n",
+    "        capturedCupScreen = null\n",
+    "        capturedCupScreen = null\n        capturedPositiveCrossScreen = null\n",
     "reset cross direction",
 )
 
 main = replace_once(
     main,
-    "                val projectedCup = cup?.let { projectWorldPoint(f.camera, it) }\n"
-    "                capturedBitmap?.recycle()\n"
-    "                capturedBitmap = bitmap\n"
-    "                capturedBallScreen = projectedBall\n"
-    "                capturedCupScreen = projectedCup\n",
+    "                val projectedCup = cup?.let { projectWorldPoint(f.camera, it) }\n",
     "                val projectedCup = cup?.let { projectWorldPoint(f.camera, it) }\n"
     "                val projectedCross = if (ball != null && cup != null) {\n"
     "                    projectPositiveCrossDirection(f.camera, ball!!, cup!!)\n"
-    "                } else null\n"
-    "                capturedBitmap?.recycle()\n"
-    "                capturedBitmap = bitmap\n"
-    "                capturedBallScreen = projectedBall\n"
-    "                capturedCupScreen = projectedCup\n"
-    "                capturedPositiveCrossScreen = projectedCross\n",
+    "                } else null\n",
     "capture projected +t direction",
+)
+
+main = replace_once(
+    main,
+    "                capturedCupScreen = projectedCup\n",
+    "                capturedCupScreen = projectedCup\n                capturedPositiveCrossScreen = projectedCross\n",
+    "store projected +t direction",
 )
 
 helper = r'''
     /**
      * Project SlopeAnalyzer's +t axis into the actual captured screen.
      *
-     * SlopeAnalyzer defines +t as (-uz, +ux) in world X/Z.  The old overlay
-     * assumed that +t always appeared on the left side of the putt line, which
-     * is not true once the camera yaw/roll or viewing side changes.  Returning
-     * the projected unit vector keeps the cyan downhill arrows and uphill aim
-     * point tied to the measured world-space slope instead of a screen guess.
+     * SlopeAnalyzer defines +t as (-uz, +ux) in world X/Z. The previous overlay
+     * assumed that +t always appeared on the left side of the displayed putt
+     * line. That assumption flips when the camera is viewed from another yaw/
+     * roll orientation. Projecting the same world-space basis used by the slope
+     * fit keeps the cyan downhill arrows and uphill aim point physically aligned.
      */
     private fun projectPositiveCrossDirection(camera: Camera, ball: Vec3, cup: Vec3): PointF? {
         val dx = cup.x - ball.x
@@ -130,9 +128,9 @@ overlay = replace_once(
 overlay = replace_once(
     overlay,
     "        val nx = uy\n        val ny = -ux\n",
-    "        // +t must come from the world-space slope basis projected through the\n"
-    "        // capture camera.  Falling back to the legacy screen normal is only\n"
-    "        // for old/incomplete captures where that projection is unavailable.\n"
+    "        // +t follows the measured world-space slope basis projected into the\n"
+    "        // captured image. Legacy line-normal fallback is retained only when\n"
+    "        // the projection is unavailable.\n"
     "        val projectedCross = positiveCrossScreen\n"
     "        val nx = projectedCross?.x ?: uy\n"
     "        val ny = projectedCross?.y ?: -ux\n",
