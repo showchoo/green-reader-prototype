@@ -73,8 +73,8 @@ replace_once(
     "surface-only nearby hit",
 )
 
-# Logs must identify the actual build used in field tests.
-s = s.replace('appVersion = "0.7.7"', 'appVersion = BuildConfig.VERSION_NAME')
+# Keep field logs tied to this build without depending on BuildConfig generation.
+s = s.replace('appVersion = "0.7.7"', 'appVersion = "0.8.0"')
 
 path.write_text(s, encoding="utf-8")
 print("Applied v0.8.0 depth-first ball/cup marking")
