@@ -44,19 +44,19 @@ jobs:
       - name: Apply power-saving patch
         run: python3 scripts/apply_power_saving.py
 
-      - name: Apply v0.7 scan UI refresh
+      - name: Apply v0.7 Japanese scan UI
         run: python3 scripts/apply_v070_ui.py
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.7-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.7.1-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.7-debug-apk
-          path: GreenReaderPrototype-v0.7-debug.apk
+          name: GreenReaderPrototype-v0.7.1-debug-apk
+          path: GreenReaderPrototype-v0.7.1-debug.apk
           if-no-files-found: error
           retention-days: 30
