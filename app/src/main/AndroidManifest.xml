@@ -9,8 +9,19 @@
         android:roundIcon="@drawable/ic_green_reader_icon"
         android:theme="@style/Theme.GreenReader">
         <meta-data android:name="com.google.ar.core" android:value="required" />
+
         <activity
             android:name=".MainActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".GrainFieldActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
+            android:name=".LauncherActivity"
             android:screenOrientation="portrait"
             android:exported="true">
             <intent-filter>
