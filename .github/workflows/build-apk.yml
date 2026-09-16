@@ -68,16 +68,19 @@ jobs:
       - name: Prefer depth for ball and cup marks
         run: python3 scripts/apply_v080_depth_first_marks.py
 
+      - name: Keep multi-frame depth in ball Anchor coordinates
+        run: python3 scripts/apply_v081_anchor_local_frame.py
+
       - name: Build debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.0-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.1-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.8.0-debug-apk
-          path: GreenReaderPrototype-v0.8.0-debug.apk
+          name: GreenReaderPrototype-v0.8.1-debug-apk
+          path: GreenReaderPrototype-v0.8.1-debug.apk
           if-no-files-found: error
           retention-days: 30
