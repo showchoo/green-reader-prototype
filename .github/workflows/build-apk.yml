@@ -77,16 +77,19 @@ jobs:
       - name: Add saved-data folder link
         run: python3 scripts/apply_v083_open_saved_data.py
 
+      - name: Open saved-data manager
+        run: python3 scripts/apply_v084_data_manager.py
+
       - name: Build debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.3-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.4-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.8.3-debug-apk
-          path: GreenReaderPrototype-v0.8.3-debug.apk
+          name: GreenReaderPrototype-v0.8.4-debug-apk
+          path: GreenReaderPrototype-v0.8.4-debug.apk
           if-no-files-found: error
           retention-days: 30
