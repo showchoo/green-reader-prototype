@@ -83,46 +83,22 @@ jobs:
       - name: Keep displayed cross axis in the same Anchor frame
         run: python3 scripts/apply_v087_anchor_cross_projection.py
 
-      - name: Reset failed tap state safely
-        run: python3 scripts/apply_v088_reset_tap_state.py
-
-      - name: Resolve marks only on the AR renderer thread
-        run: python3 scripts/apply_v089_gl_thread_marking.py
-
-      - name: Bind taps to the displayed AR frame
-        run: python3 scripts/apply_v0810_tap_frame_binding.py
-
-      - name: Restore immediate single-shot marking
-        run: python3 scripts/apply_v0811_restore_immediate_marking.py
-
       - name: Use five-window consensus scanning
         run: python3 scripts/apply_v0812_consensus_scan.py
 
-      - name: Improve ball depth acquisition
-        run: python3 scripts/apply_v0813_ball_depth_neighborhood.py
-
-      - name: Use ARCore-correct depth coordinate mapping
-        run: python3 scripts/apply_v0814_depth_coordinate_mapping.py
-
-      - name: Apply field cross-slope sign calibration
-        run: python3 scripts/apply_v0815_field_cross_sign.py
-
-      - name: Canonicalize cross slope to captured screen right
-        run: python3 scripts/apply_v0816_screen_side_mapping.py
-
-      - name: Apply final screen direction calibration
-        run: python3 scripts/apply_v0817_final_screen_direction.py
+      - name: Restore known-good geometry and single-shot taps
+        run: python3 scripts/apply_v0818_known_good_geometry.py
 
       - name: Build debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.17-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.18-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.8.17-debug-apk
-          path: GreenReaderPrototype-v0.8.17-debug.apk
+          name: GreenReaderPrototype-v0.8.18-debug-apk
+          path: GreenReaderPrototype-v0.8.18-debug.apk
           if-no-files-found: error
           retention-days: 30
