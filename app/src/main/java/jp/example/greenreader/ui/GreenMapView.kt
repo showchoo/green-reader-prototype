@@ -17,7 +17,7 @@ import kotlin.math.sin
 
 /**
  * Top-down visualization for the measured putt corridor.
- * Arrows indicate DOWNHILL direction (opposite the fitted height gradient).
+ * Arrows indicate downhill direction.
  */
 class GreenMapView(context: Context) : View(context) {
     var report: SlopeReport? = null
@@ -106,18 +106,14 @@ class GreenMapView(context: Context) : View(context) {
         paint.color = Color.WHITE
         canvas.drawCircle(endX, endY, 9f, paint)
 
-        textPaint.textAlign = Paint.Align.LEFT
-        textPaint.textSize = 25f
-        val advText = advice?.let {
-            val side = if (it.aimOffsetCm >= 0f) "左" else "右"
-            "狙い: ${side}${abs(it.aimOffsetCm).toInt()}cm / 実質 %.2fm".format(it.effectiveDistanceM)
-        } ?: "推奨ライン: 未計算"
-        canvas.drawText("距離 %.2fm  縦 %.1f%%  横 %.1f%%".format(r.distanceMeters, r.overallLongitudinalPercent, r.overallCrossPercent), 18f, height - 58f, textPaint)
-        canvas.drawText(advText, 18f, height - 24f, textPaint)
+        textPaint.textAlign = Paint.Align.CENTER
+        textPaint.textSize = 24f
+        canvas.drawText("白線＝予測ライン　矢印＝下り方向", width / 2f, height - 28f, textPaint)
 
-        grain?.let { g ->
+        if (grain != null) {
             textPaint.textAlign = Paint.Align.RIGHT
-            canvas.drawText("芝目軸 %.0f°  信頼度 %.0f%%".format(g.axisDegrees, g.confidence * 100f), width - 18f, 34f, textPaint)
+            textPaint.textSize = 22f
+            canvas.drawText("芝目データあり", width - 18f, 34f, textPaint)
         }
     }
 
@@ -134,7 +130,6 @@ class GreenMapView(context: Context) : View(context) {
 
     private fun drawDownhillArrow(canvas: Canvas, cx: Float, cy: Float, cross: Float, longitudinal: Float) {
         val mag = max(0.001f, kotlin.math.sqrt(cross * cross + longitudinal * longitudinal))
-        // Gradient points uphill; downhill is the exact opposite.
         val dx = -(cross / mag) * 32f
         val dy = (longitudinal / mag) * 32f
         val ex = cx + dx
