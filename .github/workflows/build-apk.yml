@@ -50,16 +50,19 @@ jobs:
       - name: Apply clean result UI
         run: python3 scripts/apply_v072_clean_result.py
 
+      - name: Remove green-speed control
+        run: python3 scripts/apply_v073_no_stimp.py
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.7.2-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.7.3-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.7.2-debug-apk
-          path: GreenReaderPrototype-v0.7.2-debug.apk
+          name: GreenReaderPrototype-v0.7.3-debug-apk
+          path: GreenReaderPrototype-v0.7.3-debug.apk
           if-no-files-found: error
           retention-days: 30
