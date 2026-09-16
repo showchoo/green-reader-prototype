@@ -28,11 +28,11 @@ replace_once(
             setPadding(dp(16), dp(11), dp(16), dp(11))
             background = rounded(Color.argb(215, 5, 18, 13), Color.argb(210, 74, 145, 101), 20)
             addView(TextView(this@MainActivity).apply {
-                text = "GREEN READER  /  LIVE SCAN"
+                text = "GREEN READER  /  ライブスキャン"
                 setTextColor(Color.rgb(117, 255, 167))
                 textSize = 12f
                 typeface = Typeface.DEFAULT_BOLD
-                letterSpacing = 0.12f
+                letterSpacing = 0.08f
             })
             addView(TextView(this@MainActivity).apply {
                 text = "傾斜を読む。狙いを決める。"
@@ -71,7 +71,7 @@ replace_once(
             setPadding(6, 4, 6, 8)
         }""",
     """        status = TextView(this).apply {
-            text = "STEP 1  ボール → STEP 2  カップ → SCAN"
+            text = "① ボール → ② カップ → ③ スキャン"
             setTextColor(Color.rgb(211, 234, 218))
             textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
@@ -97,15 +97,15 @@ replace_once(
         }""",
 )
 
-replace_once('button("ボール") {', 'button("● BALL") {')
-replace_once('button("カップ") {', 'button("◎ CUP") {')
-replace_once('scanButton = button("スキャン開始") { toggleScan() }', 'scanButton = button("SCAN START") { toggleScan() }.apply { background = rounded(Color.rgb(83, 225, 130), Color.rgb(149, 255, 183), 15); setTextColor(Color.rgb(5, 31, 15)) }')
-replace_once('row2.addView(button("芝目解析")', 'row2.addView(button("GRAIN")')
-replace_once('row2.addView(button("解析")', 'row2.addView(button("ANALYZE")')
-replace_once('row2.addView(button("リセット")', 'row2.addView(button("RESET")')
-replace_once('overlayToggleButton = button("実画像結果")', 'overlayToggleButton = button("PHOTO")')
-replace_once('mapToggleButton = button("傾斜マップ")', 'mapToggleButton = button("MAP")')
-replace_once('testToggleButton = button("テストモード")', 'testToggleButton = button("DIAG")')
+replace_once('button("ボール") {', 'button("● ボール") {')
+replace_once('button("カップ") {', 'button("◎ カップ") {')
+replace_once('scanButton = button("スキャン開始") { toggleScan() }', 'scanButton = button("スキャン開始") { toggleScan() }.apply { background = rounded(Color.rgb(83, 225, 130), Color.rgb(149, 255, 183), 15); setTextColor(Color.rgb(5, 31, 15)) }')
+replace_once('row2.addView(button("芝目解析")', 'row2.addView(button("芝目解析")')
+replace_once('row2.addView(button("解析")', 'row2.addView(button("解析")')
+replace_once('row2.addView(button("リセット")', 'row2.addView(button("リセット")')
+replace_once('overlayToggleButton = button("実画像結果")', 'overlayToggleButton = button("実画像")')
+replace_once('mapToggleButton = button("傾斜マップ")', 'mapToggleButton = button("傾斜マップ")')
+replace_once('testToggleButton = button("テストモード")', 'testToggleButton = button("診断")')
 
 replace_once(
     """        stimpLabel = TextView(this).apply {
@@ -114,23 +114,23 @@ replace_once(
         }""",
     """        stimpLabel = TextView(this).apply {
             setTextColor(Color.rgb(139, 255, 178))
-            text = "GREEN SPEED   STIMP 9.0"
+            text = "グリーン速度   STIMP 9.0"
             textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
-            letterSpacing = 0.08f
+            letterSpacing = 0.05f
             setPadding(dp(5), dp(8), dp(5), 0)
         }""",
 )
-replace_once('stimpLabel.text = String.format("Stimp: %.1f", 7f + p / 10f)', 'stimpLabel.text = String.format("GREEN SPEED   STIMP %.1f", 7f + p / 10f)')
+replace_once('stimpLabel.text = String.format("Stimp: %.1f", 7f + p / 10f)', 'stimpLabel.text = String.format("グリーン速度   STIMP %.1f", 7f + p / 10f)')
 
 # Keep existing dynamic button text readable after styling.
-s = s.replace('scanButton.text = "スキャン終了"', 'scanButton.text = "SCAN STOP"')
-s = s.replace('scanButton.text = "スキャン開始"', 'scanButton.text = "SCAN START"')
-s = s.replace('mapToggleButton.text = "カメラ表示"', 'mapToggleButton.text = "CAMERA"')
-s = s.replace('overlayToggleButton.text = "カメラ表示"', 'overlayToggleButton.text = "CAMERA"')
-s = s.replace('mapToggleButton.text = "傾斜マップ"', 'mapToggleButton.text = "MAP"')
-s = s.replace('overlayToggleButton.text = "実画像結果"', 'overlayToggleButton.text = "PHOTO"')
-s = s.replace('testToggleButton.text = if (testMode) "テストOFF" else "テストモード"', 'testToggleButton.text = if (testMode) "DIAG OFF" else "DIAG"')
+s = s.replace('scanButton.text = "スキャン終了"', 'scanButton.text = "スキャン終了"')
+s = s.replace('scanButton.text = "スキャン開始"', 'scanButton.text = "スキャン開始"')
+s = s.replace('mapToggleButton.text = "カメラ表示"', 'mapToggleButton.text = "カメラ"')
+s = s.replace('overlayToggleButton.text = "カメラ表示"', 'overlayToggleButton.text = "カメラ"')
+s = s.replace('mapToggleButton.text = "傾斜マップ"', 'mapToggleButton.text = "傾斜マップ"')
+s = s.replace('overlayToggleButton.text = "実画像結果"', 'overlayToggleButton.text = "実画像"')
+s = s.replace('testToggleButton.text = if (testMode) "テストOFF" else "テストモード"', 'testToggleButton.text = if (testMode) "診断OFF" else "診断"')
 
 replace_once(
     """    override fun onRequestPermissionsResult(req: Int, perms: Array<out String>, res: IntArray) {""",
@@ -146,4 +146,4 @@ replace_once(
 )
 
 path.write_text(s, encoding="utf-8")
-print("Applied v0.7 scan UI refresh")
+print("Applied v0.7 Japanese scan UI refresh")
