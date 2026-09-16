@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.Surface
@@ -40,7 +41,9 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     private val collector = DepthCollector()
     @Volatile private var latestFrame: Frame? = null
     @Volatile private var trackingStateText: String = "AR準備中"
-    private var scanning = false
+    @Volatile private var scanning = false
+    @Volatile private var autoStopPending = false
+    private var scanStartMs = 0L
     private var markMode = 0
     private var ball: Vec3? = null
     private var cup: Vec3? = null
@@ -76,39 +79,32 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         }
         root.addView(gl, FrameLayout.LayoutParams(-1, -1))
 
-        mapView = GreenMapView(this).apply {
-            visibility = View.GONE
-        }
+        mapView = GreenMapView(this).apply { visibility = View.GONE }
         root.addView(mapView, FrameLayout.LayoutParams(-1, -1))
 
-        val topPanel = LinearLayout(this).apply {
+        val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(18, 18, 18, 12)
-            setBackgroundColor(0xB8111111.toInt())
+            setPadding(14, 12, 14, 14)
+            setBackgroundColor(0xD8111111.toInt())
         }
+
+        // 操作メッセージは画面最上部ではなく、ボタンのすぐ上に表示する。
         status = TextView(this).apply {
             text = "①ボール ②カップ ③スキャン開始"
             setTextColor(0xffffffff.toInt())
-            textSize = 17f
+            textSize = 16f
+            setPadding(6, 4, 6, 8)
         }
-        topPanel.addView(status)
+        panel.addView(status)
 
         diagnostics = TextView(this).apply {
             visibility = View.GONE
             setTextColor(0xffd5ffd5.toInt())
-            textSize = 13f
+            textSize = 12f
             text = "テストモード"
+            setPadding(6, 0, 6, 6)
         }
-        topPanel.addView(diagnostics)
-
-        val topLp = FrameLayout.LayoutParams(-1, -2).apply { gravity = Gravity.TOP }
-        root.addView(topPanel, topLp)
-
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(14, 10, 14, 14)
-            setBackgroundColor(0xD8111111.toInt())
-        }
+        panel.addView(diagnostics)
 
         fun button(text: String, action: () -> Unit) = Button(this).apply {
             this.text = text
@@ -177,11 +173,14 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             }
             showCamera()
             collector.clear()
+            autoStopPending = false
+            scanStartMs = SystemClock.elapsedRealtime()
             scanning = true
             scanButton.text = "スキャン終了"
-            status.text = "スキャン中… パットライン全体をゆっくり左右に振ってください"
+            status.text = "スキャン中… 必要なデータが取れ次第、自動で終了します"
         } else {
             scanning = false
+            autoStopPending = true
             scanButton.text = "スキャン開始"
             status.text = "スキャン終了。解析しています…"
             analyze()
@@ -197,6 +196,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
 
     private fun resetAll() {
         scanning = false
+        autoStopPending = false
         scanButton.text = "スキャン開始"
         ball = null
         cup = null
@@ -257,6 +257,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
 
     override fun onPause() {
         super.onPause()
+        scanning = false
         gl.onPause()
         session?.pause()
     }
@@ -283,14 +284,55 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             trackingStateText = f.camera.trackingState.name
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
             bg.draw(f)
-            if (scanning && f.camera.trackingState == TrackingState.TRACKING) collector.integrate(f)
+
+            if (scanning && f.camera.trackingState == TrackingState.TRACKING) {
+                collector.integrate(f, pixelStrideStep = 4)
+                maybeAutoFinishScan()
+            }
 
             frameCounter++
-            if (testMode && frameCounter % 20 == 0) runOnUiThread { updateDiagnostics() }
-            if (scanning && frameCounter % 25 == 0) runOnUiThread {
-                status.text = "スキャン中… 取得点 ${collector.size()} / ${trackingStateText}"
+            if (testMode && frameCounter % 15 == 0) runOnUiThread { updateDiagnostics() }
+            if (scanning && frameCounter % 12 == 0) {
+                val elapsed = ((SystemClock.elapsedRealtime() - scanStartMs) / 100L) / 10f
+                val count = collector.size()
+                runOnUiThread {
+                    if (scanning) status.text = String.format("スキャン中 %.1f秒 / 取得点 %,d", elapsed, count)
+                }
             }
         } catch (_: Throwable) {
+        }
+    }
+
+    private fun maybeAutoFinishScan() {
+        if (!scanning || autoStopPending) return
+        val elapsed = SystemClock.elapsedRealtime() - scanStartMs
+        val b = ball ?: return
+        val c = cup ?: return
+
+        // 最低約1秒は複数フレームを集める。その後は実際に解析可能になった瞬間に終了する。
+        if (elapsed >= 1000L && frameCounter % 6 == 0) {
+            val candidate = SlopeAnalyzer.analyze(collector.snapshot(), b, c)
+            if (candidate != null && candidate.pointCount >= 100) {
+                autoStopPending = true
+                scanning = false
+                runOnUiThread {
+                    scanButton.text = "スキャン開始"
+                    status.text = "必要なデータが取れました。解析中…"
+                    analyze()
+                }
+                return
+            }
+        }
+
+        // 条件が悪い場合も3秒で一度解析し、無駄に待たせない。
+        if (elapsed >= 3000L) {
+            autoStopPending = true
+            scanning = false
+            runOnUiThread {
+                scanButton.text = "スキャン開始"
+                status.text = "3秒スキャン完了。解析中…"
+                analyze()
+            }
         }
     }
 
@@ -354,7 +396,6 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 if (values.isEmpty()) return null
                 values.sort()
                 val z = values[values.size / 2] / 1000f
-
                 val intr = frame.camera.textureIntrinsics
                 val focal = intr.focalLength
                 val principal = intr.principalPoint
@@ -363,8 +404,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 val v = ty * dims[1]
                 val cx = (u - principal[0]) / focal[0] * z
                 val cy = -(v - principal[1]) / focal[1] * z
-                val cz = -z
-                val world = frame.camera.pose.transformPoint(floatArrayOf(cx, cy, cz))
+                val world = frame.camera.pose.transformPoint(floatArrayOf(cx, cy, -z))
                 Vec3(world[0], world[1], world[2])
             }
         } catch (_: NotYetAvailableException) {
@@ -391,6 +431,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
 
     private fun analyze(updateStatus: Boolean = true) {
         scanning = false
+        autoStopPending = false
         scanButton.text = "スキャン開始"
         val b = ball
         val c = cup
@@ -400,7 +441,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         }
         val report = SlopeAnalyzer.analyze(collector.snapshot(), b, c)
         if (report == null) {
-            if (updateStatus) status.text = "解析に必要な点が不足しています。パットライン全体をゆっくりスキャンしてください"
+            if (updateStatus) status.text = "データ不足です。もう一度3秒スキャンしてください"
             return
         }
         val st = 7f + stimp.progress / 10f
@@ -412,7 +453,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         if (updateStatus) {
             val dir = if (adv.aimOffsetCm >= 0) "左" else "右"
             status.text = String.format(
-                "解析完了: %.2fm / 縦 %.1f%% / 横 %.1f%% / %s %.0fcm狙い(実験) / 点%d",
+                "解析完了: %.2fm / 縦 %.1f%% / 横 %.1f%% / %s %.0fcm狙い / 点%d",
                 report.distanceMeters,
                 report.overallLongitudinalPercent,
                 report.overallCrossPercent,
