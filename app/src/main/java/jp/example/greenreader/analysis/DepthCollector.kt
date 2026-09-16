@@ -1,6 +1,7 @@
 package jp.example.greenreader.analysis
 
 import com.google.ar.core.Frame
+import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
 import com.google.ar.core.exceptions.NotYetAvailableException
 import java.nio.ByteOrder
@@ -13,8 +14,23 @@ class DepthCollector {
     @Synchronized fun size(): Int = points.size
     @Synchronized fun snapshot(): List<Vec3> = points.toList()
 
+    /**
+     * Integrate depth into a persistent reference frame.
+     *
+     * ARCore may adjust its world coordinate space as tracking improves. Raw world
+     * coordinates from different frames therefore must not be accumulated directly.
+     * [referencePose] is the current pose of the ball Anchor; converting every depth
+     * point through its inverse keeps all samples in the same physical, anchor-local
+     * coordinate frame across the entire scan.
+     */
     @Synchronized
-    fun integrate(frame: Frame, pixelStrideStep: Int = 6, minDepthM: Float = 0.25f, maxDepthM: Float = 8f) {
+    fun integrate(
+        frame: Frame,
+        referencePose: Pose,
+        pixelStrideStep: Int = 6,
+        minDepthM: Float = 0.25f,
+        maxDepthM: Float = 8f
+    ) {
         val camera = frame.camera
         if (camera.trackingState != TrackingState.TRACKING) return
         try {
@@ -29,7 +45,8 @@ class DepthCollector {
                 val dims = intr.imageDimensions
                 val texW = dims[0].toFloat()
                 val texH = dims[1].toFloat()
-                val pose = camera.pose
+                val cameraPose = camera.pose
+                val worldToReference = referencePose.inverse()
 
                 val step = max(2, pixelStrideStep)
                 for (y in 0 until img.height step step) {
@@ -45,8 +62,9 @@ class DepthCollector {
                         val v = (y + 0.5f) / img.height * texH
                         val cx = (u - principal[0]) / focal[0] * z
                         val cy = -(v - principal[1]) / focal[1] * z
-                        val world = pose.transformPoint(floatArrayOf(cx, cy, -z))
-                        points += Vec3(world[0], world[1], world[2])
+                        val world = cameraPose.transformPoint(floatArrayOf(cx, cy, -z))
+                        val local = worldToReference.transformPoint(world)
+                        points += Vec3(local[0], local[1], local[2])
                     }
                 }
 
