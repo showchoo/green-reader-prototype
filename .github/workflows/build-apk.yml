@@ -110,16 +110,19 @@ jobs:
       - name: Canonicalize cross slope to captured screen right
         run: python3 scripts/apply_v0816_screen_side_mapping.py
 
+      - name: Apply final screen direction calibration
+        run: python3 scripts/apply_v0817_final_screen_direction.py
+
       - name: Build debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.16-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.17-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.8.16-debug-apk
-          path: GreenReaderPrototype-v0.8.16-debug.apk
+          name: GreenReaderPrototype-v0.8.17-debug-apk
+          path: GreenReaderPrototype-v0.8.17-debug.apk
           if-no-files-found: error
           retention-days: 30
