@@ -98,16 +98,19 @@ jobs:
       - name: Use five-window consensus scanning
         run: python3 scripts/apply_v0812_consensus_scan.py
 
+      - name: Improve ball depth acquisition
+        run: python3 scripts/apply_v0813_ball_depth_neighborhood.py
+
       - name: Build debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.12-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.13-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.8.12-debug-apk
-          path: GreenReaderPrototype-v0.8.12-debug.apk
+          name: GreenReaderPrototype-v0.8.13-debug-apk
+          path: GreenReaderPrototype-v0.8.13-debug.apk
           if-no-files-found: error
           retention-days: 30
