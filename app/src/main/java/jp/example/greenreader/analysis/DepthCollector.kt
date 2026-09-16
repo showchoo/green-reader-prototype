@@ -1,7 +1,7 @@
 package jp.example.greenreader.analysis
 
 import com.google.ar.core.Frame
-import com.google.ar.core.NotYetAvailableException
+import com.google.ar.core.exceptions.NotYetAvailableException
 import java.nio.ByteOrder
 import kotlin.math.max
 
