@@ -2,8 +2,11 @@ package jp.example.greenreader
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.PointF
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
+import android.opengl.Matrix
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.Gravity
@@ -20,7 +23,9 @@ import com.google.ar.core.exceptions.NotYetAvailableException
 import com.google.ar.core.exceptions.UnavailableException
 import jp.example.greenreader.analysis.*
 import jp.example.greenreader.ar.BackgroundRenderer
+import jp.example.greenreader.ui.CameraOverlayResultView
 import jp.example.greenreader.ui.GreenMapView
+import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
@@ -30,9 +35,11 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     private lateinit var status: TextView
     private lateinit var diagnostics: TextView
     private lateinit var mapView: GreenMapView
+    private lateinit var overlayView: CameraOverlayResultView
     private lateinit var stimp: SeekBar
     private lateinit var stimpLabel: TextView
     private lateinit var scanButton: Button
+    private lateinit var overlayToggleButton: Button
     private lateinit var mapToggleButton: Button
     private lateinit var testToggleButton: Button
 
@@ -43,6 +50,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     @Volatile private var trackingStateText: String = "AR準備中"
     @Volatile private var scanning = false
     @Volatile private var autoStopPending = false
+    @Volatile private var captureRequested = false
     private var scanStartMs = 0L
     private var markMode = 0
     private var ball: Vec3? = null
@@ -51,9 +59,13 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     private var viewportW = 1
     private var viewportH = 1
     private var showMap = false
+    private var showOverlay = false
     private var testMode = false
     private var frameCounter = 0
     private var depthSupported = false
+    private var capturedBitmap: Bitmap? = null
+    private var capturedBallScreen: PointF? = null
+    private var capturedCupScreen: PointF? = null
 
     private data class PendingMark(val mode: Int, val x: Float, val y: Float, val startedMs: Long)
     @Volatile private var pendingMark: PendingMark? = null
@@ -84,6 +96,9 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
 
         mapView = GreenMapView(this).apply { visibility = View.GONE }
         root.addView(mapView, FrameLayout.LayoutParams(-1, -1))
+
+        overlayView = CameraOverlayResultView(this).apply { visibility = View.GONE }
+        root.addView(overlayView, FrameLayout.LayoutParams(-1, -1))
 
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -133,13 +148,15 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
 
         val row2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         row2.addView(button("芝目解析") { analyzeGrain() }, LinearLayout.LayoutParams(0, -2, 1f))
-        row2.addView(button("解析") { analyze() }, LinearLayout.LayoutParams(0, -2, 1f))
+        row2.addView(button("解析") { requestCaptureAndAnalyze("実画像を保存して解析中…") }, LinearLayout.LayoutParams(0, -2, 1f))
         row2.addView(button("リセット") { resetAll() }, LinearLayout.LayoutParams(0, -2, 1f))
         panel.addView(row2)
 
         val row3 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        mapToggleButton = button("結果マップ") { if (showMap) showCamera() else showMap() }
+        overlayToggleButton = button("実画像結果") { if (showOverlay) showCamera() else showOverlay() }
+        mapToggleButton = button("傾斜マップ") { if (showMap) showCamera() else showMap() }
         testToggleButton = button("テストモード") { toggleTestMode() }
+        row3.addView(overlayToggleButton, LinearLayout.LayoutParams(0, -2, 1f))
         row3.addView(mapToggleButton, LinearLayout.LayoutParams(0, -2, 1f))
         row3.addView(testToggleButton, LinearLayout.LayoutParams(0, -2, 1f))
         panel.addView(row3)
@@ -158,7 +175,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 }
                 override fun onStartTrackingTouch(s: SeekBar?) {}
                 override fun onStopTrackingTouch(s: SeekBar?) {
-                    if (mapView.report != null) analyze(updateStatus = false)
+                    if (mapView.report != null) analyze(updateStatus = false, showResult = false)
                 }
             })
         }
@@ -179,17 +196,28 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             showCamera()
             collector.clear()
             autoStopPending = false
+            captureRequested = false
             scanStartMs = SystemClock.elapsedRealtime()
             scanning = true
             scanButton.text = "スキャン終了"
             status.text = "スキャン中… 必要なデータが取れ次第、自動で終了します"
         } else {
-            scanning = false
-            autoStopPending = true
-            scanButton.text = "スキャン開始"
-            status.text = "スキャン終了。解析しています…"
-            analyze()
+            requestCaptureAndAnalyze("スキャン終了。実画像を保存して解析中…")
         }
+    }
+
+    private fun requestCaptureAndAnalyze(message: String) {
+        if (ball == null || cup == null) {
+            status.text = "先にボールとカップを設定してください"
+            return
+        }
+        pendingMark = null
+        scanning = false
+        autoStopPending = true
+        scanButton.text = "スキャン開始"
+        showCamera()
+        status.text = message
+        captureRequested = true
     }
 
     private fun toggleTestMode() {
@@ -202,6 +230,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     private fun resetAll() {
         scanning = false
         autoStopPending = false
+        captureRequested = false
         pendingMark = null
         markMode = 0
         scanButton.text = "スキャン開始"
@@ -212,6 +241,11 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         mapView.report = null
         mapView.advice = null
         mapView.grain = null
+        overlayView.clear()
+        capturedBitmap?.recycle()
+        capturedBitmap = null
+        capturedBallScreen = null
+        capturedCupScreen = null
         showCamera()
         status.text = "リセットしました。ボール位置から設定してください"
     }
@@ -222,16 +256,36 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             return
         }
         showMap = true
+        showOverlay = false
         gl.visibility = View.GONE
+        overlayView.visibility = View.GONE
         mapView.visibility = View.VISIBLE
         mapToggleButton.text = "カメラ表示"
+        overlayToggleButton.text = "実画像結果"
+    }
+
+    private fun showOverlay() {
+        if (overlayView.report == null || overlayView.frameBitmap == null) {
+            status.text = "まだ実画像の解析結果がありません"
+            return
+        }
+        showMap = false
+        showOverlay = true
+        gl.visibility = View.GONE
+        mapView.visibility = View.GONE
+        overlayView.visibility = View.VISIBLE
+        overlayToggleButton.text = "カメラ表示"
+        mapToggleButton.text = "傾斜マップ"
     }
 
     private fun showCamera() {
         showMap = false
+        showOverlay = false
         mapView.visibility = View.GONE
+        overlayView.visibility = View.GONE
         gl.visibility = View.VISIBLE
-        mapToggleButton.text = "結果マップ"
+        mapToggleButton.text = "傾斜マップ"
+        overlayToggleButton.text = "実画像結果"
     }
 
     override fun onResume() {
@@ -302,6 +356,18 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 maybeAutoFinishScan()
             }
 
+            if (captureRequested && f.camera.trackingState == TrackingState.TRACKING) {
+                val bitmap = captureGlFrame(viewportW, viewportH)
+                val projectedBall = ball?.let { projectWorldPoint(f.camera, it) }
+                val projectedCup = cup?.let { projectWorldPoint(f.camera, it) }
+                capturedBitmap?.recycle()
+                capturedBitmap = bitmap
+                capturedBallScreen = projectedBall
+                capturedCupScreen = projectedCup
+                captureRequested = false
+                runOnUiThread { analyze(updateStatus = true, showResult = true) }
+            }
+
             frameCounter++
             if (testMode && frameCounter % 15 == 0) runOnUiThread { updateDiagnostics() }
             if (scanning && frameCounter % 12 == 0) {
@@ -311,7 +377,11 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                     if (scanning) status.text = String.format("スキャン中 %.1f秒 / 取得点 %,d", elapsed, count)
                 }
             }
-        } catch (_: Throwable) {
+        } catch (e: Throwable) {
+            if (captureRequested) {
+                captureRequested = false
+                runOnUiThread { status.text = "実画像の取得に失敗しました: ${e.message ?: "不明なエラー"}" }
+            }
         }
     }
 
@@ -326,10 +396,10 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             if (candidate != null && candidate.pointCount >= 100) {
                 autoStopPending = true
                 scanning = false
+                captureRequested = true
                 runOnUiThread {
                     scanButton.text = "スキャン開始"
-                    status.text = "必要なデータが取れました。解析中…"
-                    analyze()
+                    status.text = "必要なデータが取れました。実画像を保存して解析中…"
                 }
                 return
             }
@@ -338,19 +408,62 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         if (elapsed >= 3000L) {
             autoStopPending = true
             scanning = false
+            captureRequested = true
             runOnUiThread {
                 scanButton.text = "スキャン開始"
-                status.text = "3秒スキャン完了。解析中…"
-                analyze()
+                status.text = "3秒スキャン完了。実画像を保存して解析中…"
             }
         }
+    }
+
+    private fun captureGlFrame(w: Int, h: Int): Bitmap {
+        GLES20.glFinish()
+        val buffer = ByteBuffer.allocateDirect(w * h * 4).order(ByteOrder.LITTLE_ENDIAN)
+        GLES20.glReadPixels(0, 0, w, h, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, buffer)
+        val raw = IntArray(w * h)
+        buffer.rewind()
+        buffer.asIntBuffer().get(raw)
+        val out = IntArray(w * h)
+        for (y in 0 until h) {
+            val srcRow = y * w
+            val dstRow = (h - 1 - y) * w
+            for (x in 0 until w) {
+                val p = raw[srcRow + x]
+                val corrected = (p and 0xff00ff00.toInt()) or
+                    ((p and 0x000000ff) shl 16) or
+                    ((p and 0x00ff0000) ushr 16)
+                out[dstRow + x] = corrected
+            }
+        }
+        return Bitmap.createBitmap(out, w, h, Bitmap.Config.ARGB_8888)
+    }
+
+    private fun projectWorldPoint(camera: Camera, p: Vec3): PointF? {
+        val view = FloatArray(16)
+        val projection = FloatArray(16)
+        val vp = FloatArray(16)
+        val clip = FloatArray(4)
+        camera.getViewMatrix(view, 0)
+        camera.getProjectionMatrix(projection, 0, 0.05f, 100f)
+        Matrix.multiplyMM(vp, 0, projection, 0, view, 0)
+        Matrix.multiplyMV(clip, 0, vp, 0, floatArrayOf(p.x, p.y, p.z, 1f), 0)
+        val w = clip[3]
+        if (w <= 0.0001f) return null
+        val ndcX = clip[0] / w
+        val ndcY = clip[1] / w
+        if (ndcX !in -1.25f..1.25f || ndcY !in -1.25f..1.25f) return null
+        return PointF(
+            (ndcX + 1f) * 0.5f * viewportW,
+            (1f - ndcY) * 0.5f * viewportH
+        )
     }
 
     private fun updateDiagnostics() {
         val b = if (ball != null) "済" else "未"
         val c = if (cup != null) "済" else "未"
         val wait = if (pendingMark != null) "WAIT" else "-"
-        diagnostics.text = "TEST  AR:$trackingStateText  Depth:${if (depthSupported) "対応" else "非対応"}  点:${collector.size()}  Ball:$b  Cup:$c  Tap:$wait  Scan:${if (scanning) "ON" else "OFF"}"
+        val shot = if (capturedBitmap != null) "済" else "未"
+        diagnostics.text = "TEST  AR:$trackingStateText  Depth:${if (depthSupported) "対応" else "非対応"}  点:${collector.size()}  Ball:$b  Cup:$c  Tap:$wait  Scan:${if (scanning) "ON" else "OFF"}  Shot:$shot"
     }
 
     private fun markAt(x: Float, y: Float) {
@@ -368,8 +481,6 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             return
         }
 
-        // その瞬間にDepthが未生成でも、同じタップ位置を最大約1.8秒自動再試行する。
-        // ユーザーは何度もタップし直す必要がない。
         pendingMark = PendingMark(mode, x, y, SystemClock.elapsedRealtime())
         markMode = 0
         status.text = "位置を取得中… そのまま端末を少しだけ動かしてください"
@@ -536,7 +647,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         }
     }
 
-    private fun analyze(updateStatus: Boolean = true) {
+    private fun analyze(updateStatus: Boolean = true, showResult: Boolean = true) {
         scanning = false
         autoStopPending = false
         scanButton.text = "スキャン開始"
@@ -557,6 +668,15 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         mapView.advice = adv
         mapView.grain = grain
 
+        val image = capturedBitmap
+        val bp = capturedBallScreen
+        val cp = capturedCupScreen
+        if (image != null && bp != null && cp != null) {
+            overlayView.setResult(image, bp, cp, report, adv)
+        } else if (!updateStatus && overlayView.report != null) {
+            overlayView.updateAdvice(adv)
+        }
+
         if (updateStatus) {
             val dir = if (adv.aimOffsetCm >= 0) "左" else "右"
             status.text = String.format(
@@ -568,7 +688,14 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 kotlin.math.abs(adv.aimOffsetCm),
                 report.pointCount
             )
-            showMap()
+            if (showResult) {
+                if (image != null && bp != null && cp != null) {
+                    showOverlay()
+                } else {
+                    status.text = status.text.toString() + " / ボールかカップが画面外のため傾斜マップを表示"
+                    showMap()
+                }
+            }
         }
         if (testMode) updateDiagnostics()
     }
