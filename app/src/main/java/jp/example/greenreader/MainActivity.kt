@@ -88,7 +88,6 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             setBackgroundColor(0xD8111111.toInt())
         }
 
-        // 操作メッセージは画面最上部ではなく、ボタンのすぐ上に表示する。
         status = TextView(this).apply {
             text = "①ボール ②カップ ③スキャン開始"
             setTextColor(0xffffffff.toInt())
@@ -116,12 +115,12 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         row1.addView(button("ボール") {
             showCamera()
             markMode = 1
-            status.text = "画面上のボール位置をタップ"
+            status.text = "ボール付近を大まかにタップしてください（周囲も自動探索）"
         }, LinearLayout.LayoutParams(0, -2, 1f))
         row1.addView(button("カップ") {
             showCamera()
             markMode = 2
-            status.text = "画面上のカップ位置をタップ"
+            status.text = "カップ付近を大まかにタップしてください（周囲も自動探索）"
         }, LinearLayout.LayoutParams(0, -2, 1f))
         scanButton = button("スキャン開始") { toggleScan() }
         row1.addView(scanButton, LinearLayout.LayoutParams(0, -2, 1.25f))
@@ -309,7 +308,6 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         val b = ball ?: return
         val c = cup ?: return
 
-        // 最低約1秒は複数フレームを集める。その後は実際に解析可能になった瞬間に終了する。
         if (elapsed >= 1000L && frameCounter % 6 == 0) {
             val candidate = SlopeAnalyzer.analyze(collector.snapshot(), b, c)
             if (candidate != null && candidate.pointCount >= 100) {
@@ -324,7 +322,6 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             }
         }
 
-        // 条件が悪い場合も3秒で一度解析し、無駄に待たせない。
         if (elapsed >= 3000L) {
             autoStopPending = true
             scanning = false
@@ -348,15 +345,10 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             return
         }
 
-        val normalHit = f.hitTest(x, y).firstOrNull { h ->
-            val t = h.trackable
-            (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint || t is Point
-        }
-        val p = normalHit?.hitPose?.translation?.let { Vec3(it[0], it[1], it[2]) }
-            ?: depthPointAtTap(f, x, y)
+        val p = nearbyHitPoint(f, x, y) ?: depthPointAtTap(f, x, y)
 
         if (p == null) {
-            status.text = "深度が取れていません。床/芝面を映して端末を20〜50cm動かしてから再タップ"
+            status.text = "この付近の深度がまだ取れていません。少しだけ端末を動かして再タップしてください"
             return
         }
         if (markMode == 1) {
@@ -368,6 +360,30 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         }
         markMode = 0
         if (testMode) updateDiagnostics()
+    }
+
+    private fun nearbyHitPoint(frame: Frame, x: Float, y: Float): Vec3? {
+        val offsets = arrayOf(
+            0f to 0f,
+            28f to 0f, -28f to 0f, 0f to 28f, 0f to -28f,
+            28f to 28f, 28f to -28f, -28f to 28f, -28f to -28f,
+            56f to 0f, -56f to 0f, 0f to 56f, 0f to -56f,
+            56f to 56f, 56f to -56f, -56f to 56f, -56f to -56f,
+            84f to 0f, -84f to 0f, 0f to 84f, 0f to -84f
+        )
+        for ((dx, dy) in offsets) {
+            val sx = (x + dx).coerceIn(0f, viewportW.toFloat() - 1f)
+            val sy = (y + dy).coerceIn(0f, viewportH.toFloat() - 1f)
+            val hit = frame.hitTest(sx, sy).firstOrNull { h ->
+                val t = h.trackable
+                (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint || t is Point
+            }
+            if (hit != null) {
+                val tr = hit.hitPose.translation
+                return Vec3(tr[0], tr[1], tr[2])
+            }
+        }
+        return null
     }
 
     private fun depthPointAtTap(frame: Frame, x: Float, y: Float): Vec3? {
@@ -383,25 +399,59 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 val py = (ty * img.height).toInt()
                 val plane = img.planes[0]
                 val buf = plane.buffer.order(ByteOrder.LITTLE_ENDIAN)
-                val values = ArrayList<Int>(49)
-                for (dy in -3..3) for (dx in -3..3) {
-                    val xx = (px + dx).coerceIn(0, img.width - 1)
-                    val yy = (py + dy).coerceIn(0, img.height - 1)
+
+                // タップ位置の周囲を広めに探索。正確にボール/カップの中心を押さなくてもよい。
+                var bestX = -1
+                var bestY = -1
+                var bestMm = 0
+                var bestD2 = Int.MAX_VALUE
+                for (radius in listOf(0, 2, 4, 6, 8, 10, 12, 15)) {
+                    for (dy in -radius..radius) {
+                        for (dx in -radius..radius) {
+                            if (radius > 0 && kotlin.math.max(kotlin.math.abs(dx), kotlin.math.abs(dy)) != radius) continue
+                            val xx = (px + dx).coerceIn(0, img.width - 1)
+                            val yy = (py + dy).coerceIn(0, img.height - 1)
+                            val idx = yy * plane.rowStride + xx * plane.pixelStride
+                            if (idx + 1 >= buf.limit()) continue
+                            val mm = java.lang.Short.toUnsignedInt(buf.getShort(idx))
+                            if (mm !in 200..12000) continue
+                            val d2 = dx * dx + dy * dy
+                            if (d2 < bestD2) {
+                                bestD2 = d2
+                                bestX = xx
+                                bestY = yy
+                                bestMm = mm
+                            }
+                        }
+                    }
+                    if (bestX >= 0) break
+                }
+                if (bestX < 0) return null
+
+                // 見つけた有効点の周囲から中央値を取り、ノイズを抑える。
+                val values = ArrayList<Int>(121)
+                for (dy in -5..5) for (dx in -5..5) {
+                    val xx = (bestX + dx).coerceIn(0, img.width - 1)
+                    val yy = (bestY + dy).coerceIn(0, img.height - 1)
                     val idx = yy * plane.rowStride + xx * plane.pixelStride
                     if (idx + 1 < buf.limit()) {
                         val mm = java.lang.Short.toUnsignedInt(buf.getShort(idx))
                         if (mm in 200..12000) values += mm
                     }
                 }
-                if (values.isEmpty()) return null
-                values.sort()
-                val z = values[values.size / 2] / 1000f
+                val z = if (values.isNotEmpty()) {
+                    values.sort()
+                    values[values.size / 2] / 1000f
+                } else bestMm / 1000f
+
                 val intr = frame.camera.textureIntrinsics
                 val focal = intr.focalLength
                 val principal = intr.principalPoint
                 val dims = intr.imageDimensions
-                val u = tx * dims[0]
-                val v = ty * dims[1]
+                val sampleTx = (bestX + 0.5f) / img.width.toFloat()
+                val sampleTy = (bestY + 0.5f) / img.height.toFloat()
+                val u = sampleTx * dims[0]
+                val v = sampleTy * dims[1]
                 val cx = (u - principal[0]) / focal[0] * z
                 val cy = -(v - principal[1]) / focal[1] * z
                 val world = frame.camera.pose.transformPoint(floatArrayOf(cx, cy, -z))
