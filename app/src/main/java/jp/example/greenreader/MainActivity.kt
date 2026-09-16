@@ -1,6 +1,7 @@
 package jp.example.greenreader
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
@@ -12,6 +13,9 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
 import com.google.ar.core.*
 import com.google.ar.core.exceptions.CameraNotAvailableException
 import com.google.ar.core.exceptions.UnavailableException
@@ -32,7 +36,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     private val collector=DepthCollector()
     @Volatile private var latestFrame:Frame?=null
     private var scanning=false
-    private var markMode=0 // 1 ball, 2 cup
+    private var markMode=0
     private var ball:Vec3?=null
     private var cup:Vec3?=null
     private var grain:GrainReport?=null
@@ -43,6 +47,23 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         buildUi()
         if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){
             ActivityCompat.requestPermissions(this,arrayOf(Manifest.permission.CAMERA),100)
+        } else {
+            offerHomeShortcut()
+        }
+    }
+
+    private fun offerHomeShortcut(){
+        val prefs=getSharedPreferences("green_reader_prefs",MODE_PRIVATE)
+        if(prefs.getBoolean("shortcut_requested",false)) return
+        if(!ShortcutManagerCompat.isRequestPinShortcutSupported(this)) return
+        val shortcut=ShortcutInfoCompat.Builder(this,"green_reader_home")
+            .setShortLabel("Green Reader")
+            .setLongLabel("Green Readerを開く")
+            .setIcon(IconCompat.createWithResource(this,R.drawable.ic_green_reader_icon))
+            .setIntent(Intent(this,MainActivity::class.java).setAction(Intent.ACTION_VIEW))
+            .build()
+        if(ShortcutManagerCompat.requestPinShortcut(this,shortcut,null)){
+            prefs.edit().putBoolean("shortcut_requested",true).apply()
         }
     }
 
