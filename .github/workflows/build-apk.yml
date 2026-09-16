@@ -86,16 +86,19 @@ jobs:
       - name: Reset failed tap state safely
         run: python3 scripts/apply_v088_reset_tap_state.py
 
+      - name: Resolve marks only on the AR renderer thread
+        run: python3 scripts/apply_v089_gl_thread_marking.py
+
       - name: Build debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.8-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.9-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.8.8-debug-apk
-          path: GreenReaderPrototype-v0.8.8-debug.apk
+          name: GreenReaderPrototype-v0.8.9-debug-apk
+          path: GreenReaderPrototype-v0.8.9-debug.apk
           if-no-files-found: error
           retention-days: 30
