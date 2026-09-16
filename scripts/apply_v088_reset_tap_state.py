@@ -54,21 +54,24 @@ replace_once(
 # still incomplete, restore the correct target so the user can tap again after resume.
 replace_once(
     """    override fun onPause() {
-        session?.pause()
-        gl.onPause()
         super.onPause()
+        scanning = false
+        pendingMark = null
+        gl.onPause()
+        session?.pause()
     }
 """,
     """    override fun onPause() {
+        super.onPause()
+        scanning = false
         markAttemptToken += 1L
         pendingMark = null
         latestFrame = null
         if (ball == null || cup == null) {
             markMode = if (ball == null) 1 else 2
         }
-        session?.pause()
         gl.onPause()
-        super.onPause()
+        session?.pause()
     }
 """,
     "pause invalidates mark callbacks",
