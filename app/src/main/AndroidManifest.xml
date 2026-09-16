@@ -21,6 +21,11 @@
         </activity>
 
         <activity
+            android:name=".DataManagerActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
+        <activity
             android:name=".GrainFieldActivity"
             android:screenOrientation="portrait"
             android:exported="false" />
