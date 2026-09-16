@@ -9,6 +9,8 @@ import android.graphics.drawable.GradientDrawable
 import android.opengl.GLES20
 import android.opengl.GLSurfaceView
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.Surface
 import android.view.View
@@ -49,6 +51,16 @@ class GrainFieldActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     @Volatile private var recordRequested = false
     @Volatile private var tracking = "AR準備中"
     private var lastRecord: GrainSavedRecord? = null
+    private val renderHandler = Handler(Looper.getMainLooper())
+    private var activityActive = false
+    private var previewSuspended = false
+    private val renderTick = object : Runnable {
+        override fun run() {
+            if (!activityActive || previewSuspended) return
+            gl.requestRender()
+            renderHandler.postDelayed(this, if (recordRequested) 33L else 160L)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,7 +77,7 @@ class GrainFieldActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         gl = GLSurfaceView(this).apply {
             setEGLContextClientVersion(2)
             setRenderer(this@GrainFieldActivity)
-            renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+            renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
         }
         root.addView(gl, FrameLayout.LayoutParams(-1, -1))
 
@@ -130,9 +142,11 @@ class GrainFieldActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             setTextColor(Color.rgb(7, 30, 15))
             background = rounded(Color.rgb(93, 230, 135), Color.rgb(150, 255, 185), 18)
             setOnClickListener {
+                resumePreviewIfNeeded()
                 lastRecord = null
                 labelRow.visibility = View.GONE
                 recordRequested = true
+                restartRenderLoop()
                 isEnabled = false
                 text = "記録中…"
                 status.text = "画像・角度・信頼度・端末姿勢を保存しています"
@@ -203,8 +217,37 @@ class GrainFieldActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         }.start()
     }
 
+    private fun restartRenderLoop() {
+        renderHandler.removeCallbacks(renderTick)
+        if (activityActive && !previewSuspended) renderHandler.post(renderTick)
+    }
+
+    private fun suspendPreviewForResult() {
+        if (!activityActive || previewSuspended) return
+        renderHandler.removeCallbacks(renderTick)
+        try {
+            gl.onPause()
+            session?.pause()
+            previewSuspended = true
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun resumePreviewIfNeeded() {
+        if (!activityActive || !previewSuspended) return
+        try {
+            session?.resume()
+            gl.onResume()
+            previewSuspended = false
+            restartRenderLoop()
+        } catch (_: CameraNotAvailableException) {
+            status.text = "カメラを再開できません"
+        }
+    }
+
     override fun onResume() {
         super.onResume()
+        activityActive = true
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) return
         try {
             if (session == null) {
@@ -212,13 +255,16 @@ class GrainFieldActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 session = Session(this).also { s ->
                     val cfg = Config(s).apply {
                         focusMode = Config.FocusMode.AUTO
-                        if (s.isDepthModeSupported(Config.DepthMode.AUTOMATIC)) depthMode = Config.DepthMode.AUTOMATIC
+                        depthMode = Config.DepthMode.DISABLED
+                        planeFindingMode = Config.PlaneFindingMode.DISABLED
                     }
                     s.configure(cfg)
                 }
             }
             session?.resume()
             gl.onResume()
+            previewSuspended = false
+            restartRenderLoop()
         } catch (e: UnavailableException) {
             status.text = "ARCoreを開始できません: ${e.message}"
         } catch (_: CameraNotAvailableException) {
@@ -228,9 +274,13 @@ class GrainFieldActivity : AppCompatActivity(), GLSurfaceView.Renderer {
 
     override fun onPause() {
         super.onPause()
+        activityActive = false
+        renderHandler.removeCallbacks(renderTick)
         recordRequested = false
-        gl.onPause()
-        session?.pause()
+        if (!previewSuspended) {
+            gl.onPause()
+            session?.pause()
+        }
     }
 
     override fun onSurfaceCreated(unused: GL10?, config: EGLConfig?) {
@@ -284,6 +334,7 @@ class GrainFieldActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                             recordButton.text = "●  もう1件記録"
                             labelRow.visibility = View.VISIBLE
                             status.text = "保存完了: ${saved.id}  /  判定ラベルを付けてください"
+                            suspendPreviewForResult()
                         }
                     } catch (e: Throwable) {
                         bitmap.recycle()
