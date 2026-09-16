@@ -7,7 +7,6 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -28,17 +27,16 @@ class LauncherActivity : AppCompatActivity() {
             )
         }
 
-        val kicker = TextView(this).apply {
-            text = "GREEN READER  /  AR LAB"
+        root.addView(TextView(this).apply {
+            text = "GREEN READER"
             setTextColor(Color.rgb(124, 255, 177))
             textSize = 13f
             letterSpacing = 0.18f
             typeface = Typeface.DEFAULT_BOLD
-        }
-        root.addView(kicker)
+        })
 
         root.addView(TextView(this).apply {
-            text = "Read the green.\nSee the line."
+            text = "傾斜を読む。\n狙いを決める。"
             setTextColor(Color.WHITE)
             textSize = 35f
             typeface = Typeface.DEFAULT_BOLD
@@ -47,22 +45,18 @@ class LauncherActivity : AppCompatActivity() {
         })
 
         root.addView(TextView(this).apply {
-            text = "傾斜解析と芝目フィールド記録を、現場で迷わず使える形にまとめました。"
+            text = "通常のグリーンスキャンだけで、傾斜解析と芝目データ記録を自動で行います。"
             setTextColor(Color.rgb(202, 219, 209))
             textSize = 15f
             setPadding(0, 0, 0, dp(30))
         })
 
-        root.addView(cardButton("GREEN SCAN", "傾斜・実画像ライン解析", true) {
+        root.addView(cardButton("グリーン解析を開始", "ボール → カップ → スキャン", true) {
             startActivity(Intent(this, MainActivity::class.java))
-        })
-        root.addView(space())
-        root.addView(cardButton("GRAIN FIELD LOG", "芝目画像 + 角度 + 信頼度 + 端末姿勢を保存", false) {
-            startActivity(Intent(this, GrainFieldActivity::class.java))
         })
 
         root.addView(TextView(this).apply {
-            text = "FIELD DATA → Pictures/GreenReaderRecords\nCSV → Download/GreenReaderRecords"
+            text = "芝目データはスキャン時に自動保存されます\nPictures/GreenReaderRecords + Download/GreenReaderRecords"
             setTextColor(Color.rgb(132, 158, 143))
             textSize = 12f
             setPadding(0, dp(28), 0, 0)
@@ -89,7 +83,6 @@ class LauncherActivity : AppCompatActivity() {
                 setTextColor(if (accent) Color.rgb(5, 28, 14) else Color.WHITE)
                 textSize = 19f
                 typeface = Typeface.DEFAULT_BOLD
-                letterSpacing = 0.08f
             })
             addView(TextView(this@LauncherActivity).apply {
                 text = subtitle
@@ -101,6 +94,5 @@ class LauncherActivity : AppCompatActivity() {
         }
     }
 
-    private fun space() = View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(14)) }
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 }
