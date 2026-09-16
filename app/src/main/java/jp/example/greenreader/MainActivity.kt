@@ -55,6 +55,9 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     private var frameCounter = 0
     private var depthSupported = false
 
+    private data class PendingMark(val mode: Int, val x: Float, val y: Float, val startedMs: Long)
+    @Volatile private var pendingMark: PendingMark? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         buildUi()
@@ -114,13 +117,15 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         row1.addView(button("ボール") {
             showCamera()
+            pendingMark = null
             markMode = 1
-            status.text = "ボールの中心付近をタップしてください"
+            status.text = "ボールの中心付近を1回タップしてください"
         }, LinearLayout.LayoutParams(0, -2, 1f))
         row1.addView(button("カップ") {
             showCamera()
+            pendingMark = null
             markMode = 2
-            status.text = "カップの中心付近をタップしてください"
+            status.text = "カップの中心付近を1回タップしてください"
         }, LinearLayout.LayoutParams(0, -2, 1f))
         scanButton = button("スキャン開始") { toggleScan() }
         row1.addView(scanButton, LinearLayout.LayoutParams(0, -2, 1.25f))
@@ -170,6 +175,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 status.text = "先にボールとカップを設定してください"
                 return
             }
+            pendingMark = null
             showCamera()
             collector.clear()
             autoStopPending = false
@@ -196,6 +202,8 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     private fun resetAll() {
         scanning = false
         autoStopPending = false
+        pendingMark = null
+        markMode = 0
         scanButton.text = "スキャン開始"
         ball = null
         cup = null
@@ -257,6 +265,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     override fun onPause() {
         super.onPause()
         scanning = false
+        pendingMark = null
         gl.onPause()
         session?.pause()
     }
@@ -283,6 +292,10 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             trackingStateText = f.camera.trackingState.name
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
             bg.draw(f)
+
+            if (f.camera.trackingState == TrackingState.TRACKING) {
+                tryResolvePendingMark(f)
+            }
 
             if (scanning && f.camera.trackingState == TrackingState.TRACKING) {
                 collector.integrate(f, pixelStrideStep = 4)
@@ -336,33 +349,70 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     private fun updateDiagnostics() {
         val b = if (ball != null) "済" else "未"
         val c = if (cup != null) "済" else "未"
-        diagnostics.text = "TEST  AR:$trackingStateText  Depth:${if (depthSupported) "対応" else "非対応"}  点:${collector.size()}  Ball:$b  Cup:$c  Scan:${if (scanning) "ON" else "OFF"}"
+        val wait = if (pendingMark != null) "WAIT" else "-"
+        diagnostics.text = "TEST  AR:$trackingStateText  Depth:${if (depthSupported) "対応" else "非対応"}  点:${collector.size()}  Ball:$b  Cup:$c  Tap:$wait  Scan:${if (scanning) "ON" else "OFF"}"
     }
 
     private fun markAt(x: Float, y: Float) {
-        val f = latestFrame ?: run {
-            status.text = "ARの準備中です。端末を少し動かしてから再試行してください"
+        val mode = markMode
+        if (mode == 0) return
+        val f = latestFrame
+        if (f == null) {
+            status.text = "ARの準備中です。端末を少し動かしてください"
             return
         }
 
-        // まず実際にタップした位置を優先する。近傍探索は取得できない場合だけ使う。
-        val p = exactHitPoint(f, x, y)
-            ?: depthPointAtTap(f, x, y)
-            ?: nearbyHitPoint(f, x, y)
-
-        if (p == null) {
-            status.text = "この位置の深度がまだ取れていません。端末を少し動かして再タップしてください"
+        val p = resolveMarkPoint(f, x, y)
+        if (p != null) {
+            applyMark(mode, p)
             return
         }
-        if (markMode == 1) {
+
+        // その瞬間にDepthが未生成でも、同じタップ位置を最大約1.8秒自動再試行する。
+        // ユーザーは何度もタップし直す必要がない。
+        pendingMark = PendingMark(mode, x, y, SystemClock.elapsedRealtime())
+        markMode = 0
+        status.text = "位置を取得中… そのまま端末を少しだけ動かしてください"
+    }
+
+    private fun tryResolvePendingMark(frame: Frame) {
+        val pending = pendingMark ?: return
+        val elapsed = SystemClock.elapsedRealtime() - pending.startedMs
+        if (elapsed > 1800L) {
+            pendingMark = null
+            markMode = pending.mode
+            runOnUiThread {
+                status.text = if (pending.mode == 1) {
+                    "ボール位置を取得できませんでした。もう一度1回だけタップしてください"
+                } else {
+                    "カップ位置を取得できませんでした。もう一度1回だけタップしてください"
+                }
+            }
+            return
+        }
+
+        val p = resolveMarkPoint(frame, pending.x, pending.y) ?: return
+        pendingMark = null
+        runOnUiThread { applyMark(pending.mode, p) }
+    }
+
+    private fun applyMark(mode: Int, p: Vec3) {
+        pendingMark = null
+        markMode = 0
+        if (mode == 1) {
             ball = p
             status.text = "ボール位置を設定しました。次にカップを設定"
         } else {
             cup = p
             status.text = "カップ位置を設定しました。スキャン開始してください"
         }
-        markMode = 0
         if (testMode) updateDiagnostics()
+    }
+
+    private fun resolveMarkPoint(frame: Frame, x: Float, y: Float): Vec3? {
+        return exactHitPoint(frame, x, y)
+            ?: depthPointAtTap(frame, x, y)
+            ?: tinyNearbyHitPoint(frame, x, y)
     }
 
     private fun exactHitPoint(frame: Frame, x: Float, y: Float): Vec3? {
@@ -374,12 +424,11 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         return Vec3(tr[0], tr[1], tr[2])
     }
 
-    private fun nearbyHitPoint(frame: Frame, x: Float, y: Float): Vec3? {
-        // フォールバックだけを小さな範囲に限定。広すぎる探索で別の場所を拾わないようにする。
+    private fun tinyNearbyHitPoint(frame: Frame, x: Float, y: Float): Vec3? {
         val offsets = arrayOf(
-            16f to 0f, -16f to 0f, 0f to 16f, 0f to -16f,
-            16f to 16f, 16f to -16f, -16f to 16f, -16f to -16f,
-            32f to 0f, -32f to 0f, 0f to 32f, 0f to -32f
+            10f to 0f, -10f to 0f, 0f to 10f, 0f to -10f,
+            10f to 10f, 10f to -10f, -10f to 10f, -10f to -10f,
+            20f to 0f, -20f to 0f, 0f to 20f, 0f to -20f
         )
         for ((dx, dy) in offsets) {
             val sx = (x + dx).coerceIn(0f, viewportW.toFloat() - 1f)
@@ -414,8 +463,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 var bestY = -1
                 var bestMm = 0
                 var bestD2 = Int.MAX_VALUE
-                // Depth画像側も探索を小さくする。タップ位置から遠い点は採用しない。
-                for (radius in listOf(0, 1, 2, 3, 4, 5, 6)) {
+                for (radius in listOf(0, 1, 2, 3, 4)) {
                     for (dy in -radius..radius) {
                         for (dx in -radius..radius) {
                             if (radius > 0 && kotlin.math.max(kotlin.math.abs(dx), kotlin.math.abs(dy)) != radius) continue
@@ -438,8 +486,8 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 }
                 if (bestX < 0) return null
 
-                val values = ArrayList<Int>(49)
-                for (dy in -3..3) for (dx in -3..3) {
+                val values = ArrayList<Int>(25)
+                for (dy in -2..2) for (dx in -2..2) {
                     val xx = (bestX + dx).coerceIn(0, img.width - 1)
                     val yy = (bestY + dy).coerceIn(0, img.height - 1)
                     val idx = yy * plane.rowStride + xx * plane.pixelStride
