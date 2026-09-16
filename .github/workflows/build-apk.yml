@@ -92,16 +92,19 @@ jobs:
       - name: Bind taps to the displayed AR frame
         run: python3 scripts/apply_v0810_tap_frame_binding.py
 
+      - name: Restore immediate single-shot marking
+        run: python3 scripts/apply_v0811_restore_immediate_marking.py
+
       - name: Build debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.10-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.11-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.8.10-debug-apk
-          path: GreenReaderPrototype-v0.8.10-debug.apk
+          name: GreenReaderPrototype-v0.8.11-debug-apk
+          path: GreenReaderPrototype-v0.8.11-debug.apk
           if-no-files-found: error
           retention-days: 30
