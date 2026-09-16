@@ -30,14 +30,28 @@ object SlopeAnalyzer {
         val vx = -uz
         val vz = ux
 
-        val corridor = points.mapNotNull { p ->
+        // First crop only in the horizontal green corridor. The old implementation
+        // fed every point in this X/Z corridor into the plane fit, including chair
+        // legs, walls and other geometry above the putting surface. Those points can
+        // dominate a shallow real green slope and even reverse the cross-slope sign.
+        val horizontalCorridor = points.mapNotNull { p ->
             val rx = p.x - ball.x
             val rz = p.z - ball.z
             val s = rx * ux + rz * uz
             val t = rx * vx + rz * vz
             if (s in -0.25f..(dist + 0.25f) && abs(t) <= corridorHalfWidthM) Sample(s, t, p.y) else null
         }
-        if (corridor.size < 80) return null
+        if (horizontalCorridor.size < 80) return null
+
+        // Ball/cup are on the putting surface, so use their height as a conservative
+        // vertical prior. The band grows with putt length to retain genuinely steep
+        // greens. If the marks are temporarily poor and this removes too much data,
+        // fall back to the horizontal corridor rather than failing the scan.
+        val referenceY = (ball.y + cup.y) * 0.5f
+        val endpointDeltaY = abs(cup.y - ball.y)
+        val surfaceHalfHeight = maxOf(0.25f, endpointDeltaY + dist * 0.12f).coerceAtMost(0.85f)
+        val surfaceCorridor = horizontalCorridor.filter { abs(it.h - referenceY) <= surfaceHalfHeight }
+        val corridor = if (surfaceCorridor.size >= 80) surfaceCorridor else horizontalCorridor
 
         // The complete corridor is much less sensitive to sparse/noisy depth near the cup.
         val allFit = robustFitPlane(corridor) ?: return null
