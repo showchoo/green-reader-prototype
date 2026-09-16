@@ -11,8 +11,8 @@ android {
         applicationId = "jp.example.greenreader"
         minSdk = 26
         targetSdk = 35
-        versionCode = 34
-        versionName = "0.8.14"
+        versionCode = 35
+        versionName = "0.8.15"
     }
 
     compileOptions {
