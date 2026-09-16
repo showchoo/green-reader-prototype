@@ -19,9 +19,9 @@ import kotlin.math.hypot
 /**
  * Captured camera frame + calculated putting overlay.
  *
- * v0.7 visual semantics:
- * - cyan arrows = DOWNHILL direction (where gravity pulls the ball)
- * - yellow dashed line = AIM guide toward the uphill-side aim point
+ * Visual semantics:
+ * - cyan arrows = downhill direction
+ * - yellow dashed line = aim guide toward the uphill-side aim point
  * - solid white curve = predicted roll path bending back downhill toward the cup
  */
 class CameraOverlayResultView(context: Context) : View(context) {
@@ -64,21 +64,11 @@ class CameraOverlayResultView(context: Context) : View(context) {
         strokeCap = Paint.Cap.ROUND
         setShadowLayer(4f, 0f, 1f, Color.BLACK)
     }
-    private val chipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(205, 5, 18, 13)
-        style = Paint.Style.FILL
-    }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textSize = 34f
         typeface = Typeface.DEFAULT_BOLD
         setShadowLayer(6f, 0f, 2f, Color.BLACK)
-    }
-    private val smallText = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(206, 232, 216)
-        textSize = 25f
-        typeface = Typeface.DEFAULT_BOLD
-        setShadowLayer(4f, 0f, 1f, Color.BLACK)
     }
 
     init {
@@ -143,7 +133,6 @@ class CameraOverlayResultView(context: Context) : View(context) {
         val screenDistance = hypot(dx.toDouble(), dy.toDouble()).toFloat().coerceAtLeast(1f)
         val ux = dx / screenDistance
         val uy = dy / screenDistance
-        // Screen-space LEFT normal for BALL -> CUP.
         val nx = uy
         val ny = -ux
 
@@ -151,8 +140,6 @@ class CameraOverlayResultView(context: Context) : View(context) {
         val aimPx = ((a.aimOffsetCm / 100f) * pxPerMeter)
             .coerceIn(-screenDistance * 0.45f, screenDistance * 0.45f)
 
-        // Aim point is deliberately UPHILL. The solid roll path starts toward this
-        // point and then bends DOWNHILL back into the cup.
         val aim = PointF(c.x + nx * aimPx, c.y + ny * aimPx)
         canvas.drawLine(b.x, b.y, aim.x, aim.y, aimPaint)
 
@@ -170,7 +157,6 @@ class CameraOverlayResultView(context: Context) : View(context) {
         }
         canvas.drawPath(rollPath, rollPaint)
 
-        // Ball / cup / aim markers.
         markerPaint.color = Color.WHITE
         canvas.drawCircle(b.x, b.y, 19f, markerPaint)
         markerPaint.color = Color.RED
@@ -180,11 +166,10 @@ class CameraOverlayResultView(context: Context) : View(context) {
 
         textPaint.textAlign = Paint.Align.LEFT
         textPaint.textSize = 28f
-        canvas.drawText("BALL", b.x + 24f, b.y - 16f, textPaint)
-        canvas.drawText("CUP", c.x + 26f, c.y - 16f, textPaint)
+        canvas.drawText("ボール", b.x + 24f, b.y - 16f, textPaint)
+        canvas.drawText("カップ", c.x + 26f, c.y - 16f, textPaint)
         canvas.drawText("狙い点", aim.x + 22f, aim.y + 8f, textPaint)
 
-        // Cyan arrows now show DOWNHILL (opposite the height gradient).
         r.segments.forEachIndexed { i, seg ->
             val t = (i + 0.5f) / r.segments.size
             val x = b.x + dx * t
@@ -208,19 +193,5 @@ class CameraOverlayResultView(context: Context) : View(context) {
                 slopePaint
             )
         }
-
-        // Compact HUD summary.
-        val chipTop = height - 106f
-        canvas.drawRoundRect(12f, chipTop, width - 12f, height - 12f, 22f, 22f, chipPaint)
-        val side = if (a.aimOffsetCm >= 0f) "左" else "右"
-        textPaint.textSize = 31f
-        canvas.drawText("狙い ${side}${abs(a.aimOffsetCm).toInt()}cm", 28f, height - 62f, textPaint)
-        smallText.textAlign = Paint.Align.LEFT
-        canvas.drawText(
-            String.format("白=予測転がり  黄点線=狙い  水色=下り  %.2fm / 横 %.1f%%", r.distanceMeters, r.overallCrossPercent),
-            28f,
-            height - 28f,
-            smallText
-        )
     }
 }
