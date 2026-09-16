@@ -1,17 +1,12 @@
 package jp.example.greenreader
 
-import android.app.RecoverableSecurityException
-import android.content.ContentUris
-import android.content.ContentValues
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.DocumentsContract
-import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -22,20 +17,28 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.documentfile.provider.DocumentFile
 import java.io.File
 
-/** Simple manager for scan packages saved under Download/GreenReaderRecords. */
+/**
+ * Manages scan packages saved under Download/GreenReaderRecords.
+ *
+ * Android 10+ deliberately uses Storage Access Framework (DocumentFile) instead of
+ * MediaStore queries. MediaStore can expose only app-owned/indexed rows on some devices,
+ * which made older scan folders disappear from the list. A persisted tree permission lets
+ * us enumerate the real directory contents and therefore manage old and new scans equally.
+ */
 class DataManagerActivity : AppCompatActivity() {
     companion object {
-        private const val REQ_DELETE_ONE = 9101
-        private const val REQ_WRITE = 9102
-        private const val REQ_DELETE_ALL = 9103
+        private const val REQ_RECORDS_TREE = 9201
+        private const val PREFS = "saved_data_manager"
+        private const val KEY_RECORDS_TREE_URI = "records_tree_uri"
+        private const val RECORDS_FOLDER = "GreenReaderRecords"
     }
 
     private lateinit var list: LinearLayout
     private lateinit var empty: TextView
-    private var pendingRenameOld: String? = null
-    private var pendingRenameNew: String? = null
+    private var autoPickerShown = false
 
     private data class ScanFolder(val name: String, val itemCount: Int)
 
@@ -44,6 +47,12 @@ class DataManagerActivity : AppCompatActivity() {
         title = "保存データ"
         setContentView(buildUi())
         refresh()
+
+        // v0.8.6 migration: ask once for direct access to the real saved-data folder.
+        if (usesSharedDownloadFolder() && recordsRoot() == null && !autoPickerShown) {
+            autoPickerShown = true
+            list.post { requestRecordsFolderAccess() }
+        }
     }
 
     override fun onResume() {
@@ -72,10 +81,14 @@ class DataManagerActivity : AppCompatActivity() {
         })
 
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        top.addView(actionButton("ファイル画面で開く") { openSystemFolder() }, LinearLayout.LayoutParams(0, dp(44), 1f))
-        top.addView(actionButton("更新") { refresh() }, LinearLayout.LayoutParams(0, dp(44), 0.55f).apply {
-            marginStart = dp(8)
-        })
+        top.addView(
+            actionButton("保存フォルダを開く") { requestRecordsFolderAccess() },
+            LinearLayout.LayoutParams(0, dp(44), 1f)
+        )
+        top.addView(
+            actionButton("更新") { refresh() },
+            LinearLayout.LayoutParams(0, dp(44), 0.48f).apply { marginStart = dp(8) }
+        )
         root.addView(top)
 
         root.addView(actionButton("全データ削除") { confirmDeleteAll() }.apply {
@@ -103,6 +116,14 @@ class DataManagerActivity : AppCompatActivity() {
     private fun refresh() {
         val folders = loadFolders()
         list.removeAllViews()
+
+        if (usesSharedDownloadFolder() && recordsRoot() == null) {
+            empty.text = "最初に「保存フォルダを開く」を押し、\nGreenReaderRecords を選んで「このフォルダを使用」を押してください"
+            empty.visibility = View.VISIBLE
+            return
+        }
+
+        empty.text = "保存データはまだありません"
         empty.visibility = if (folders.isEmpty()) View.VISIBLE else View.GONE
         folders.forEach { folder -> list.addView(folderRow(folder)) }
     }
@@ -125,12 +146,18 @@ class DataManagerActivity : AppCompatActivity() {
             textSize = 12f
             setPadding(0, dp(2), 0, dp(8))
         })
+
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        actions.addView(actionButton("名前変更") { renameDialog(folder) }, LinearLayout.LayoutParams(0, dp(42), 1f))
-        actions.addView(actionButton("削除") { confirmDelete(folder) }, LinearLayout.LayoutParams(0, dp(42), 0.7f).apply {
-            marginStart = dp(8)
-        })
+        actions.addView(
+            actionButton("名前変更") { renameDialog(folder) },
+            LinearLayout.LayoutParams(0, dp(42), 1f)
+        )
+        actions.addView(
+            actionButton("削除") { confirmDelete(folder) },
+            LinearLayout.LayoutParams(0, dp(42), 0.7f).apply { marginStart = dp(8) }
+        )
         box.addView(actions)
+
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(box, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
@@ -154,7 +181,10 @@ class DataManagerActivity : AppCompatActivity() {
                     newName.contains('/') || newName.contains('\\') -> toast("/ と \\ は使えません")
                     newName == folder.name -> Unit
                     folderExists(newName) -> toast("同じ名前のデータがあります")
-                    renameFolder(folder.name, newName) -> Unit
+                    renameFolder(folder.name, newName) -> {
+                        toast("名前を変更しました")
+                        refresh()
+                    }
                     else -> toast("名前を変更できませんでした")
                 }
             }
@@ -166,12 +196,24 @@ class DataManagerActivity : AppCompatActivity() {
             .setTitle("削除しますか？")
             .setMessage("${folder.name}\n\nこのスキャンの画像・Depth点群・解析データをすべて削除します。")
             .setNegativeButton("キャンセル", null)
-            .setPositiveButton("削除") { _, _ -> deleteFolder(folder.name) }
+            .setPositiveButton("削除") { _, _ ->
+                if (deleteFolder(folder.name)) {
+                    toast("削除しました")
+                    refresh()
+                } else {
+                    toast("削除できませんでした")
+                }
+            }
             .show()
     }
 
     private fun confirmDeleteAll() {
         val folders = loadFolders()
+        if (usesSharedDownloadFolder() && recordsRoot() == null) {
+            toast("先に保存フォルダへのアクセスを許可してください")
+            requestRecordsFolderAccess()
+            return
+        }
         if (folders.isEmpty()) {
             toast("削除するデータがありません")
             return
@@ -180,226 +222,176 @@ class DataManagerActivity : AppCompatActivity() {
             .setTitle("全データを削除しますか？")
             .setMessage("保存されている ${folders.size} 件のスキャンデータをすべて削除します。\n\nこの操作は元に戻せません。")
             .setNegativeButton("キャンセル", null)
-            .setPositiveButton("全削除") { _, _ -> deleteAllFolders() }
+            .setPositiveButton("全削除") { _, _ ->
+                if (deleteAllFolders()) {
+                    toast("全データを削除しました")
+                    refresh()
+                } else {
+                    toast("一部のデータを削除できませんでした")
+                    refresh()
+                }
+            }
             .show()
     }
 
-    private fun loadFolders(): List<ScanFolder> =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) loadModernFolders() else loadLegacyFolders()
+    private fun usesSharedDownloadFolder(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 
-    private fun loadModernFolders(): List<ScanFolder> {
-        val counts = linkedMapOf<String, Int>()
-        val prefix = "${Environment.DIRECTORY_DOWNLOADS}/GreenReaderRecords/"
-        val projection = arrayOf(MediaStore.Downloads.RELATIVE_PATH)
-        val selection = "${MediaStore.Downloads.RELATIVE_PATH} LIKE ?"
-        contentResolver.query(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-            projection,
-            selection,
-            arrayOf("$prefix%"),
-            null
-        )?.use { c ->
-            val relIndex = c.getColumnIndexOrThrow(MediaStore.Downloads.RELATIVE_PATH)
-            while (c.moveToNext()) {
-                val rel = c.getString(relIndex) ?: continue
-                val rest = rel.removePrefix(prefix).trim('/')
-                val folder = rest.substringBefore('/')
-                if (folder.isNotBlank()) counts[folder] = (counts[folder] ?: 0) + 1
+    private fun loadFolders(): List<ScanFolder> =
+        if (usesSharedDownloadFolder()) loadDocumentFolders() else loadLegacyFolders()
+
+    private fun loadDocumentFolders(): List<ScanFolder> {
+        val root = recordsRoot() ?: return emptyList()
+        return safeChildren(root)
+            .filter { it.isDirectory }
+            .mapNotNull { folder ->
+                val name = folder.name ?: return@mapNotNull null
+                ScanFolder(name, safeChildren(folder).size)
             }
-        }
-        return counts.entries.sortedByDescending { it.key }.map { ScanFolder(it.key, it.value) }
+            .sortedByDescending { it.name }
     }
 
     private fun loadLegacyFolders(): List<ScanFolder> {
-        val root = File(getExternalFilesDir(null), "GreenReaderRecords")
-        return root.listFiles()?.filter { it.isDirectory }?.sortedByDescending { it.name }
-            ?.map { ScanFolder(it.name, it.listFiles()?.size ?: 0) } ?: emptyList()
+        val root = File(getExternalFilesDir(null), RECORDS_FOLDER)
+        return root.listFiles()
+            ?.filter { it.isDirectory }
+            ?.sortedByDescending { it.name }
+            ?.map { ScanFolder(it.name, it.listFiles()?.size ?: 0) }
+            ?: emptyList()
     }
 
-    private fun folderExists(name: String): Boolean = loadFolders().any { it.name == name }
+    private fun folderExists(name: String): Boolean {
+        if (!usesSharedDownloadFolder()) {
+            return File(File(getExternalFilesDir(null), RECORDS_FOLDER), name).exists()
+        }
+        val root = recordsRoot() ?: return false
+        return safeChildren(root).any { it.name == name }
+    }
 
     private fun renameFolder(oldName: String, newName: String): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            val root = File(getExternalFilesDir(null), "GreenReaderRecords")
-            val ok = File(root, oldName).renameTo(File(root, newName))
-            if (ok) { toast("名前を変更しました"); refresh() }
-            return ok
+        if (!usesSharedDownloadFolder()) {
+            val root = File(getExternalFilesDir(null), RECORDS_FOLDER)
+            return File(root, oldName).renameTo(File(root, newName))
         }
-        val oldRel = "${Environment.DIRECTORY_DOWNLOADS}/GreenReaderRecords/$oldName/"
-        val newRel = "${Environment.DIRECTORY_DOWNLOADS}/GreenReaderRecords/$newName/"
-        val uris = queryUrisForRelativePath(oldRel)
-        if (uris.isEmpty()) return false
+        val root = recordsRoot() ?: return false
+        val target = safeChildren(root).firstOrNull { it.isDirectory && it.name == oldName }
+            ?: return false
         return try {
-            var changed = 0
-            uris.forEach { uri ->
-                changed += contentResolver.update(
-                    uri,
-                    ContentValues().apply { put(MediaStore.Downloads.RELATIVE_PATH, newRel) },
-                    null,
-                    null
-                )
-            }
-            val ok = changed == uris.size
-            if (ok) { toast("名前を変更しました"); refresh() }
-            ok
-        } catch (e: SecurityException) {
-            requestRenamePermission(oldName, newName, uris, e)
-        }
-    }
-
-    private fun requestRenamePermission(oldName: String, newName: String, uris: List<Uri>, error: SecurityException): Boolean {
-        pendingRenameOld = oldName
-        pendingRenameNew = newName
-        return try {
-            when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
-                    val request = MediaStore.createWriteRequest(contentResolver, uris)
-                    startIntentSenderForResult(request.intentSender, REQ_WRITE, null, 0, 0, 0)
-                    true
-                }
-                Build.VERSION.SDK_INT == Build.VERSION_CODES.Q && error is RecoverableSecurityException -> {
-                    startIntentSenderForResult(error.userAction.actionIntent.intentSender, REQ_WRITE, null, 0, 0, 0)
-                    true
-                }
-                else -> false
-            }
+            target.renameTo(newName)
         } catch (_: Throwable) {
             false
         }
     }
 
-    private fun deleteFolder(name: String) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            val root = File(getExternalFilesDir(null), "GreenReaderRecords")
-            if (File(root, name).deleteRecursively()) {
-                toast("削除しました")
-                refresh()
-            } else toast("削除できませんでした")
-            return
+    private fun deleteFolder(name: String): Boolean {
+        if (!usesSharedDownloadFolder()) {
+            val root = File(getExternalFilesDir(null), RECORDS_FOLDER)
+            return File(root, name).deleteRecursively()
         }
-        val rel = "${Environment.DIRECTORY_DOWNLOADS}/GreenReaderRecords/$name/"
-        val uris = queryUrisForRelativePath(rel)
-        if (uris.isEmpty()) {
-            toast("削除できませんでした")
-            return
-        }
-        requestDelete(uris, REQ_DELETE_ONE)
-    }
-
-    private fun deleteAllFolders() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            val root = File(getExternalFilesDir(null), "GreenReaderRecords")
-            val ok = !root.exists() || root.deleteRecursively()
-            if (ok) {
-                toast("全データを削除しました")
-                refresh()
-            } else toast("削除できませんでした")
-            return
-        }
-        val uris = queryAllRecordUris()
-        if (uris.isEmpty()) {
-            toast("削除するデータがありません")
-            return
-        }
-        requestDelete(uris, REQ_DELETE_ALL)
-    }
-
-    private fun requestDelete(uris: List<Uri>, requestCode: Int) {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val request = MediaStore.createDeleteRequest(contentResolver, uris)
-                startIntentSenderForResult(request.intentSender, requestCode, null, 0, 0, 0)
-                return
-            }
-            var deleted = 0
-            try {
-                uris.forEach { deleted += contentResolver.delete(it, null, null) }
-                if (deleted == uris.size) {
-                    toast(if (requestCode == REQ_DELETE_ALL) "全データを削除しました" else "削除しました")
-                    refresh()
-                } else toast("削除できませんでした")
-            } catch (e: RecoverableSecurityException) {
-                startIntentSenderForResult(e.userAction.actionIntent.intentSender, requestCode, null, 0, 0, 0)
-            }
+        val root = recordsRoot() ?: return false
+        val target = safeChildren(root).firstOrNull { it.isDirectory && it.name == name }
+            ?: return false
+        return try {
+            target.delete()
         } catch (_: Throwable) {
-            toast("削除できませんでした")
+            false
+        }
+    }
+
+    private fun deleteAllFolders(): Boolean {
+        if (!usesSharedDownloadFolder()) {
+            val root = File(getExternalFilesDir(null), RECORDS_FOLDER)
+            if (!root.exists()) return true
+            var ok = true
+            root.listFiles()?.forEach { child -> if (!child.deleteRecursively()) ok = false }
+            return ok
+        }
+
+        val root = recordsRoot() ?: return false
+        var ok = true
+        safeChildren(root).forEach { child ->
+            val deleted = try { child.delete() } catch (_: Throwable) { false }
+            if (!deleted) ok = false
+        }
+        return ok
+    }
+
+    /** Returns the persisted, real GreenReaderRecords directory. No MediaStore indexing involved. */
+    private fun recordsRoot(): DocumentFile? {
+        if (!usesSharedDownloadFolder()) return null
+        val uriText = getSharedPreferences(PREFS, MODE_PRIVATE)
+            .getString(KEY_RECORDS_TREE_URI, null)
+            ?: return null
+        return try {
+            val uri = Uri.parse(uriText)
+            DocumentFile.fromTreeUri(this, uri)
+                ?.takeIf { it.exists() && it.isDirectory && it.canRead() }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun safeChildren(folder: DocumentFile): List<DocumentFile> =
+        try { folder.listFiles().toList() } catch (_: Throwable) { emptyList() }
+
+    private fun requestRecordsFolderAccess() {
+        if (!usesSharedDownloadFolder()) return
+
+        val saved = getSharedPreferences(PREFS, MODE_PRIVATE)
+            .getString(KEY_RECORDS_TREE_URI, null)
+            ?.let(Uri::parse)
+        val target = saved ?: Uri.parse(
+            "content://com.android.externalstorage.documents/document/primary%3ADownload%2FGreenReaderRecords"
+        )
+
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            putExtra(DocumentsContract.EXTRA_INITIAL_URI, target)
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+            )
+        }
+        try {
+            startActivityForResult(intent, REQ_RECORDS_TREE)
+        } catch (_: Throwable) {
+            toast("フォルダ選択画面を開けませんでした")
         }
     }
 
     @Deprecated("Deprecated in Android")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode != RESULT_OK) return
-        when (requestCode) {
-            REQ_DELETE_ONE -> {
-                toast("削除しました")
-                refresh()
-            }
-            REQ_DELETE_ALL -> {
-                toast("全データを削除しました")
-                refresh()
-            }
-            REQ_WRITE -> {
-                val oldName = pendingRenameOld
-                val newName = pendingRenameNew
-                pendingRenameOld = null
-                pendingRenameNew = null
-                if (oldName != null && newName != null) {
-                    if (!renameFolder(oldName, newName)) toast("名前を変更できませんでした")
-                }
-            }
-        }
-    }
+        if (requestCode != REQ_RECORDS_TREE || resultCode != RESULT_OK) return
 
-    private fun queryUrisForRelativePath(path: String): List<Uri> {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return emptyList()
-        val uris = mutableListOf<Uri>()
-        contentResolver.query(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-            arrayOf(MediaStore.Downloads._ID),
-            "${MediaStore.Downloads.RELATIVE_PATH} = ?",
-            arrayOf(path),
-            null
-        )?.use { c ->
-            val idIndex = c.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-            while (c.moveToNext()) {
-                uris += ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(idIndex))
-            }
-        }
-        return uris
-    }
+        val uri = data?.data ?: return
+        val chosen = try { DocumentFile.fromTreeUri(this, uri) } catch (_: Throwable) { null }
+        val treeId = try { DocumentsContract.getTreeDocumentId(uri) } catch (_: Throwable) { null }
+        val correctFolder = chosen?.name == RECORDS_FOLDER ||
+            treeId?.substringAfterLast('/') == RECORDS_FOLDER
 
-    private fun queryAllRecordUris(): List<Uri> {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return emptyList()
-        val prefix = "${Environment.DIRECTORY_DOWNLOADS}/GreenReaderRecords/"
-        val uris = mutableListOf<Uri>()
-        contentResolver.query(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-            arrayOf(MediaStore.Downloads._ID),
-            "${MediaStore.Downloads.RELATIVE_PATH} LIKE ?",
-            arrayOf("$prefix%"),
-            null
-        )?.use { c ->
-            val idIndex = c.getColumnIndexOrThrow(MediaStore.Downloads._ID)
-            while (c.moveToNext()) {
-                uris += ContentUris.withAppendedId(MediaStore.Downloads.EXTERNAL_CONTENT_URI, c.getLong(idIndex))
-            }
+        if (!correctFolder) {
+            toast("GreenReaderRecords フォルダを選択してください")
+            return
         }
-        return uris
-    }
 
-    private fun openSystemFolder() {
-        val target = Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload%2FGreenReaderRecords")
-        val downloads = Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload")
-        fun launch(uri: Uri) {
-            startActivity(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
-                putExtra(DocumentsContract.EXTRA_INITIAL_URI, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            })
+        val takeFlags = data.flags and
+            (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        try {
+            contentResolver.takePersistableUriPermission(uri, takeFlags)
+        } catch (_: Throwable) {
+            toast("フォルダへのアクセスを保存できませんでした")
+            return
         }
-        try { launch(target) } catch (_: Throwable) {
-            try { launch(downloads) } catch (_: Throwable) { toast("ファイル画面を開けませんでした") }
-        }
+
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+            .edit()
+            .putString(KEY_RECORDS_TREE_URI, uri.toString())
+            .apply()
+
+        toast("保存フォルダを読み込みました")
+        refresh()
     }
 
     private fun actionButton(label: String, action: () -> Unit) = Button(this).apply {
