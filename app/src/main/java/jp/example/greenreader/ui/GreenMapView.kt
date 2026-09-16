@@ -13,13 +13,11 @@ import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sin
 
 /**
  * Top-down visualization for the measured putt corridor.
- * This is deliberately a visualization of measured/estimated slope segments,
- * not a claim that the entire green has been reconstructed yet.
+ * Arrows indicate DOWNHILL direction (opposite the fitted height gradient).
  */
 class GreenMapView(context: Context) : View(context) {
     var report: SlopeReport? = null
@@ -37,15 +35,15 @@ class GreenMapView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawColor(Color.rgb(18, 44, 28))
+        canvas.drawColor(Color.rgb(8, 22, 15))
 
         val r = report
         if (r == null) {
             textPaint.textAlign = Paint.Align.CENTER
             textPaint.textSize = 34f
-            canvas.drawText("解析後にここへグリーンマップを表示", width / 2f, height / 2f, textPaint)
+            canvas.drawText("解析後にグリーンマップを表示", width / 2f, height / 2f, textPaint)
             textPaint.textSize = 24f
-            canvas.drawText("色＝高低傾向　矢印＝傾斜方向　白線＝推奨ライン", width / 2f, height / 2f + 46f, textPaint)
+            canvas.drawText("矢印＝下り方向　白線＝予測転がり", width / 2f, height / 2f + 46f, textPaint)
             return
         }
 
@@ -57,7 +55,7 @@ class GreenMapView(context: Context) : View(context) {
         val corridorH = bottom - top
 
         paint.style = Paint.Style.FILL
-        paint.color = Color.rgb(30, 92, 45)
+        paint.color = Color.rgb(22, 73, 40)
         canvas.drawRoundRect(left, top, right, bottom, 32f, 32f, paint)
 
         val segments = r.segments
@@ -71,11 +69,10 @@ class GreenMapView(context: Context) : View(context) {
 
                 val cx = (left + right) / 2f
                 val cy = (y1 + y2) / 2f
-                drawSlopeArrow(canvas, cx, cy, s.crossPercent, s.longitudinalPercent)
+                drawDownhillArrow(canvas, cx, cy, s.crossPercent, s.longitudinalPercent)
             }
         }
 
-        // Suggested putt line. Positive aim offset means left in the advisor.
         val adv = advice
         val startX = (left + right) / 2f
         val startY = bottom - 28f
@@ -87,9 +84,11 @@ class GreenMapView(context: Context) : View(context) {
                 val halfWidthM = 0.65f
                 val pxPerM = (corridorW / 2f) / halfWidthM
                 val offsetPx = (adv.aimOffsetCm / 100f * pxPerM).coerceIn(-corridorW * 0.35f, corridorW * 0.35f)
-                cubicTo(startX + offsetPx * 0.45f, startY - corridorH * 0.25f,
-                    endX + offsetPx, top + corridorH * 0.35f,
-                    endX, endY)
+                cubicTo(
+                    startX + offsetPx * 0.42f, startY - corridorH * 0.25f,
+                    endX + offsetPx * 0.55f, top + corridorH * 0.35f,
+                    endX, endY
+                )
             } else {
                 lineTo(endX, endY)
             }
@@ -99,20 +98,19 @@ class GreenMapView(context: Context) : View(context) {
         paint.color = Color.WHITE
         canvas.drawPath(path, paint)
 
-        // Ball / cup markers.
         paint.style = Paint.Style.FILL
         paint.color = Color.WHITE
         canvas.drawCircle(startX, startY, 15f, paint)
-        paint.color = Color.BLACK
+        paint.color = Color.rgb(236, 61, 72)
         canvas.drawCircle(endX, endY, 19f, paint)
         paint.color = Color.WHITE
-        canvas.drawCircle(endX, endY, 11f, paint)
+        canvas.drawCircle(endX, endY, 9f, paint)
 
         textPaint.textAlign = Paint.Align.LEFT
         textPaint.textSize = 25f
         val advText = advice?.let {
             val side = if (it.aimOffsetCm >= 0f) "左" else "右"
-            "推奨: ${side}${abs(it.aimOffsetCm).toInt()}cm / 実質 %.2fm".format(it.effectiveDistanceM)
+            "狙い: ${side}${abs(it.aimOffsetCm).toInt()}cm / 実質 %.2fm".format(it.effectiveDistanceM)
         } ?: "推奨ライン: 未計算"
         canvas.drawText("距離 %.2fm  縦 %.1f%%  横 %.1f%%".format(r.distanceMeters, r.overallLongitudinalPercent, r.overallCrossPercent), 18f, height - 58f, textPaint)
         canvas.drawText(advText, 18f, height - 24f, textPaint)
@@ -134,16 +132,17 @@ class GreenMapView(context: Context) : View(context) {
         }
     }
 
-    private fun drawSlopeArrow(canvas: Canvas, cx: Float, cy: Float, cross: Float, longitudinal: Float) {
+    private fun drawDownhillArrow(canvas: Canvas, cx: Float, cy: Float, cross: Float, longitudinal: Float) {
         val mag = max(0.001f, kotlin.math.sqrt(cross * cross + longitudinal * longitudinal))
-        val dx = (cross / mag) * 32f
-        val dy = -(longitudinal / mag) * 32f
+        // Gradient points uphill; downhill is the exact opposite.
+        val dx = -(cross / mag) * 32f
+        val dy = (longitudinal / mag) * 32f
         val ex = cx + dx
         val ey = cy + dy
 
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 5f
-        paint.color = Color.argb(220, 255, 255, 255)
+        paint.color = Color.argb(235, 60, 235, 255)
         canvas.drawLine(cx - dx * 0.35f, cy - dy * 0.35f, ex, ey, paint)
 
         val a = atan2(dy, dx)
