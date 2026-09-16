@@ -49,7 +49,17 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     private fun buildUi(){
         val root=FrameLayout(this)
         gl=GLSurfaceView(this).apply {
-            setEGLContextClientVersion(2); setRenderer(this@MainActivity); renderMode=GLSurfaceView.RENDERMODE_CONTINUOUSLY
+            setEGLContextClientVersion(2)
+            setRenderer(this@MainActivity)
+            renderMode=GLSurfaceView.RENDERMODE_CONTINUOUSLY
+            setOnTouchListener { _, ev ->
+                if (ev.action == MotionEvent.ACTION_UP && markMode != 0) {
+                    markAt(ev.x, ev.y)
+                    true
+                } else {
+                    markMode != 0
+                }
+            }
         }
         root.addView(gl,FrameLayout.LayoutParams(-1,-1))
 
@@ -76,7 +86,7 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         stimpLabel=TextView(this).apply { setTextColor(0xffffffff.toInt()); text="Stimp: 9.0" }
         panel.addView(stimpLabel)
         stimp=SeekBar(this).apply {
-            max=50; progress=20 // 7.0 + 2.0
+            max=50; progress=20
             setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener{
                 override fun onProgressChanged(s:SeekBar?,p:Int,from:Boolean){ stimpLabel.text=String.format("Stimp: %.1f",7f+p/10f) }
                 override fun onStartTrackingTouch(s:SeekBar?){}
@@ -90,9 +100,6 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
 
         val lp=FrameLayout.LayoutParams(-1,-2).apply { gravity=Gravity.BOTTOM }
         root.addView(panel,lp)
-        root.setOnTouchListener { _,ev ->
-            if(ev.action==MotionEvent.ACTION_UP && markMode!=0){ markAt(ev.x,ev.y); true } else false
-        }
         setContentView(root)
     }
 
@@ -137,7 +144,10 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
     }
 
     private fun markAt(x:Float,y:Float){
-        val f=latestFrame ?: return
+        val f=latestFrame ?: run {
+            status.text="ARの準備中です。端末を少し動かしてから再試行してください"
+            return
+        }
         val hit=f.hitTest(x,y).firstOrNull { h ->
             val t=h.trackable
             (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint || t is Point
