@@ -2,7 +2,7 @@ package jp.example.greenreader.analysis
 
 import android.media.Image
 import com.google.ar.core.Frame
-import com.google.ar.core.NotYetAvailableException
+import com.google.ar.core.exceptions.NotYetAvailableException
 import kotlin.math.*
 
 object GrainEstimator {
