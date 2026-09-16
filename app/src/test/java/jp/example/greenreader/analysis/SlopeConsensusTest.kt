@@ -74,4 +74,32 @@ class SlopeConsensusTest {
         )
         assertNull(consensus)
     }
+
+    @Test
+    fun fieldModeRejectsThreeToTwoAndAcceptsFourToOne() {
+        val weak = SlopeConsensus.combine(
+            listOf(
+                report(-2.0f),
+                report(-2.2f),
+                report(-2.1f),
+                report(2.1f),
+                report(2.2f)
+            ),
+            minAgree = 4
+        )
+        assertNull(weak)
+
+        val strong = SlopeConsensus.combine(
+            listOf(
+                report(-2.0f),
+                report(-2.2f),
+                report(-2.1f),
+                report(-2.3f),
+                report(2.2f)
+            ),
+            minAgree = 4
+        )
+        assertTrue(strong != null)
+        assertTrue(strong!!.overallCrossPercent < 0f)
+    }
 }
