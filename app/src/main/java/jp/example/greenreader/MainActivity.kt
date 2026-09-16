@@ -18,10 +18,12 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.google.ar.core.*
 import com.google.ar.core.exceptions.CameraNotAvailableException
+import com.google.ar.core.exceptions.NotYetAvailableException
 import com.google.ar.core.exceptions.UnavailableException
 import jp.example.greenreader.analysis.*
 import jp.example.greenreader.ar.BackgroundRenderer
 import jp.example.greenreader.ui.ProfileView
+import java.nio.ByteOrder
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
@@ -169,13 +171,71 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             status.text="ARの準備中です。端末を少し動かしてから再試行してください"
             return
         }
-        val hit=f.hitTest(x,y).firstOrNull { h ->
+
+        val normalHit=f.hitTest(x,y).firstOrNull { h ->
             val t=h.trackable
             (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint || t is Point
-        } ?: run { status.text="位置を取得できません。端末を少し動かして再試行してください"; return }
-        val p=hit.hitPose.translation.let{Vec3(it[0],it[1],it[2])}
+        }
+        val p = normalHit?.hitPose?.translation?.let{Vec3(it[0],it[1],it[2])}
+            ?: depthPointAtTap(f,x,y)
+
+        if(p==null){
+            status.text="まだ深度が取れていません。床/芝面を映しながら端末を左右に20〜50cm動かして、もう一度タップしてください"
+            return
+        }
         if(markMode==1){ball=p;status.text="ボール位置を設定しました。次にカップを設定"}else{cup=p;status.text="カップ位置を設定しました。スキャン開始してください"}
         markMode=0
+    }
+
+    private fun depthPointAtTap(frame:Frame, x:Float, y:Float):Vec3? {
+        if(viewportW<=1 || viewportH<=1) return null
+        return try {
+            frame.acquireDepthImage16Bits().use { img ->
+                val inCoords=floatArrayOf((x/viewportW).coerceIn(0f,1f),(y/viewportH).coerceIn(0f,1f))
+                val texCoords=FloatArray(2)
+                frame.transformCoordinates2d(
+                    Coordinates2d.VIEW_NORMALIZED,
+                    inCoords,
+                    Coordinates2d.TEXTURE_NORMALIZED,
+                    texCoords
+                )
+                val tx=texCoords[0].coerceIn(0f,0.9999f)
+                val ty=texCoords[1].coerceIn(0f,0.9999f)
+                val px=(tx*img.width).toInt()
+                val py=(ty*img.height).toInt()
+                val plane=img.planes[0]
+                val buf=plane.buffer.order(ByteOrder.LITTLE_ENDIAN)
+                val values=ArrayList<Int>(49)
+                for(dy in -3..3) for(dx in -3..3){
+                    val xx=(px+dx).coerceIn(0,img.width-1)
+                    val yy=(py+dy).coerceIn(0,img.height-1)
+                    val idx=yy*plane.rowStride+xx*plane.pixelStride
+                    if(idx+1<buf.limit()){
+                        val mm=java.lang.Short.toUnsignedInt(buf.getShort(idx))
+                        if(mm in 200..12000) values+=mm
+                    }
+                }
+                if(values.isEmpty()) return null
+                values.sort()
+                val z=values[values.size/2]/1000f
+
+                val intr=frame.camera.textureIntrinsics
+                val focal=intr.focalLength
+                val principal=intr.principalPoint
+                val dims=intr.imageDimensions
+                val u=tx*dims[0]
+                val v=ty*dims[1]
+                val cx=(u-principal[0])/focal[0]*z
+                val cy=-(v-principal[1])/focal[1]*z
+                val cz=-z
+                val world=frame.camera.pose.transformPoint(floatArrayOf(cx,cy,cz))
+                Vec3(world[0],world[1],world[2])
+            }
+        } catch(_:NotYetAvailableException){
+            null
+        } catch(_:Throwable){
+            null
+        }
     }
 
     private fun analyzeGrain(){
