@@ -89,16 +89,19 @@ jobs:
       - name: Restore known-good geometry and single-shot taps
         run: python3 scripts/apply_v0818_known_good_geometry.py
 
+      - name: Improve Ball acquisition without changing geometry
+        run: python3 scripts/apply_v0819_ball_center_depth_fallback.py
+
       - name: Build debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.18-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.19-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.8.18-debug-apk
-          path: GreenReaderPrototype-v0.8.18-debug.apk
+          name: GreenReaderPrototype-v0.8.19-debug-apk
+          path: GreenReaderPrototype-v0.8.19-debug.apk
           if-no-files-found: error
           retention-days: 30
