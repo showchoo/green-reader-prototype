@@ -115,12 +115,12 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         row1.addView(button("ボール") {
             showCamera()
             markMode = 1
-            status.text = "ボール付近を大まかにタップしてください（周囲も自動探索）"
+            status.text = "ボールの中心付近をタップしてください"
         }, LinearLayout.LayoutParams(0, -2, 1f))
         row1.addView(button("カップ") {
             showCamera()
             markMode = 2
-            status.text = "カップ付近を大まかにタップしてください（周囲も自動探索）"
+            status.text = "カップの中心付近をタップしてください"
         }, LinearLayout.LayoutParams(0, -2, 1f))
         scanButton = button("スキャン開始") { toggleScan() }
         row1.addView(scanButton, LinearLayout.LayoutParams(0, -2, 1.25f))
@@ -345,10 +345,13 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
             return
         }
 
-        val p = nearbyHitPoint(f, x, y) ?: depthPointAtTap(f, x, y)
+        // まず実際にタップした位置を優先する。近傍探索は取得できない場合だけ使う。
+        val p = exactHitPoint(f, x, y)
+            ?: depthPointAtTap(f, x, y)
+            ?: nearbyHitPoint(f, x, y)
 
         if (p == null) {
-            status.text = "この付近の深度がまだ取れていません。少しだけ端末を動かして再タップしてください"
+            status.text = "この位置の深度がまだ取れていません。端末を少し動かして再タップしてください"
             return
         }
         if (markMode == 1) {
@@ -362,14 +365,21 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
         if (testMode) updateDiagnostics()
     }
 
+    private fun exactHitPoint(frame: Frame, x: Float, y: Float): Vec3? {
+        val hit = frame.hitTest(x, y).firstOrNull { h ->
+            val t = h.trackable
+            (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint || t is Point
+        } ?: return null
+        val tr = hit.hitPose.translation
+        return Vec3(tr[0], tr[1], tr[2])
+    }
+
     private fun nearbyHitPoint(frame: Frame, x: Float, y: Float): Vec3? {
+        // フォールバックだけを小さな範囲に限定。広すぎる探索で別の場所を拾わないようにする。
         val offsets = arrayOf(
-            0f to 0f,
-            28f to 0f, -28f to 0f, 0f to 28f, 0f to -28f,
-            28f to 28f, 28f to -28f, -28f to 28f, -28f to -28f,
-            56f to 0f, -56f to 0f, 0f to 56f, 0f to -56f,
-            56f to 56f, 56f to -56f, -56f to 56f, -56f to -56f,
-            84f to 0f, -84f to 0f, 0f to 84f, 0f to -84f
+            16f to 0f, -16f to 0f, 0f to 16f, 0f to -16f,
+            16f to 16f, 16f to -16f, -16f to 16f, -16f to -16f,
+            32f to 0f, -32f to 0f, 0f to 32f, 0f to -32f
         )
         for ((dx, dy) in offsets) {
             val sx = (x + dx).coerceIn(0f, viewportW.toFloat() - 1f)
@@ -400,12 +410,12 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 val plane = img.planes[0]
                 val buf = plane.buffer.order(ByteOrder.LITTLE_ENDIAN)
 
-                // タップ位置の周囲を広めに探索。正確にボール/カップの中心を押さなくてもよい。
                 var bestX = -1
                 var bestY = -1
                 var bestMm = 0
                 var bestD2 = Int.MAX_VALUE
-                for (radius in listOf(0, 2, 4, 6, 8, 10, 12, 15)) {
+                // Depth画像側も探索を小さくする。タップ位置から遠い点は採用しない。
+                for (radius in listOf(0, 1, 2, 3, 4, 5, 6)) {
                     for (dy in -radius..radius) {
                         for (dx in -radius..radius) {
                             if (radius > 0 && kotlin.math.max(kotlin.math.abs(dx), kotlin.math.abs(dy)) != radius) continue
@@ -428,9 +438,8 @@ class MainActivity : AppCompatActivity(), GLSurfaceView.Renderer {
                 }
                 if (bestX < 0) return null
 
-                // 見つけた有効点の周囲から中央値を取り、ノイズを抑える。
-                val values = ArrayList<Int>(121)
-                for (dy in -5..5) for (dx in -5..5) {
+                val values = ArrayList<Int>(49)
+                for (dy in -3..3) for (dx in -3..3) {
                     val xx = (bestX + dx).coerceIn(0, img.width - 1)
                     val yy = (bestY + dy).coerceIn(0, img.height - 1)
                     val idx = yy * plane.rowStride + xx * plane.pixelStride
