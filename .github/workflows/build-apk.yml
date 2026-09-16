@@ -71,16 +71,19 @@ jobs:
       - name: Keep multi-frame depth in ball Anchor coordinates
         run: python3 scripts/apply_v081_anchor_local_frame.py
 
+      - name: Use automatic Ball-to-Cup tap sequence
+        run: python3 scripts/apply_v082_auto_mark_sequence.py
+
       - name: Build debug APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.1-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.2-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.8.1-debug-apk
-          path: GreenReaderPrototype-v0.8.1-debug.apk
+          name: GreenReaderPrototype-v0.8.2-debug-apk
+          path: GreenReaderPrototype-v0.8.2-debug.apk
           if-no-files-found: error
           retention-days: 30
