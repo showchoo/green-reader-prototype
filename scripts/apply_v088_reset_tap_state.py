@@ -14,8 +14,8 @@ def replace_once(old: str, new: str, label: str) -> None:
 # A failed mark is retried on the GL thread and then delivered back to the UI thread.
 # Merely clearing pendingMark during reset is not enough: a retry can already have
 # captured the old PendingMark and enqueue a stale UI callback after reset. Give each
-# tap attempt a monotonically increasing token. Reset/pause increments the token so
-# every callback from the old generation becomes a no-op.
+# tap attempt a monotonically increasing token. Reset increments the token so every
+# callback from the old generation becomes a no-op.
 replace_once(
     """    private data class PendingMark(val mode: Int, val x: Float, val y: Float, val startedMs: Long)
     @Volatile private var pendingMark: PendingMark? = null
@@ -33,10 +33,9 @@ replace_once(
     "mark attempt generation",
 )
 
-# v0.7.4/v0.7.5 insert logging reset fields between captureRequested and pendingMark,
-# so anchor directly on the final pendingMark/markMode pair produced by v0.8.2.
 # Reset is a hard boundary for mark acquisition. Drop latestFrame as well so an
-# immediate post-reset tap cannot resolve against the pre-reset camera frame.
+# immediate post-reset tap cannot resolve against the frame that belonged to the
+# failed attempt; a fresh rendered AR frame repopulates latestFrame immediately.
 replace_once(
     """        pendingMark = null
         markMode = 1
@@ -47,34 +46,6 @@ replace_once(
         markMode = 1
 """,
     "hard reset tap acquisition",
-)
-
-# Backgrounding the app is another lifecycle boundary. Invalidate callbacks that may
-# already be queued from the GL thread and discard the pre-pause frame. If a mark was
-# still incomplete, restore the correct target so the user can tap again after resume.
-replace_once(
-    """    override fun onPause() {
-        super.onPause()
-        scanning = false
-        pendingMark = null
-        gl.onPause()
-        session?.pause()
-    }
-""",
-    """    override fun onPause() {
-        super.onPause()
-        scanning = false
-        markAttemptToken += 1L
-        pendingMark = null
-        latestFrame = null
-        if (ball == null || cup == null) {
-            markMode = if (ball == null) 1 else 2
-        }
-        gl.onPause()
-        session?.pause()
-    }
-""",
-    "pause invalidates mark callbacks",
 )
 
 old_mark_at = '''    private fun markAt(x: Float, y: Float) {
