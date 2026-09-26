@@ -1,0 +1,43 @@
+name: Build Green Reader Precision APK
+
+on:
+  push:
+    branches: [ precision-v1 ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore and verify source bundle
+        shell: bash
+        run: |
+          cat precision-src/source.part{00..07} | tr -d '\n\r' | base64 -d > precision-v1.zip
+          echo "3a4f6ae892fafcc786b66c301037afa929a5b94ee2b7a7e202d42ec8ecec7284  precision-v1.zip" | sha256sum -c -
+          unzip -q precision-v1.zip
+          test -f green-reader-v1/settings.gradle.kts
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Run tests and build APK
+        working-directory: green-reader-v1
+        run: |
+          gradle testDebugUnitTest :app:assembleDebug
+
+      - name: Rename APK
+        run: cp green-reader-v1/app/build/outputs/apk/debug/app-debug.apk GreenReaderPrecision-v1.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GreenReaderPrecision-v1
+          path: GreenReaderPrecision-v1.apk
+          if-no-files-found: error
