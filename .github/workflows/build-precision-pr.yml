@@ -14,7 +14,7 @@ jobs:
       - name: Restore and verify source bundle
         shell: bash
         run: |
-          cat precision-src/source.part{00..07} | tr -d '\n\r' | base64 -d > precision-v1.zip
+          cat precision-src/source.part00 precision-src/source.part01a precision-src/source.part01b precision-src/source.part02 precision-src/source.part03 precision-src/source.part04 precision-src/source.part05 precision-src/source.part06 precision-src/source.part07 | tr -d '\n\r' | base64 -d > precision-v1.zip
           echo "3a4f6ae892fafcc786b66c301037afa929a5b94ee2b7a7e202d42ec8ecec7284  precision-v1.zip" | sha256sum -c -
           unzip -q precision-v1.zip
           test -f green-reader-v1/settings.gradle.kts
