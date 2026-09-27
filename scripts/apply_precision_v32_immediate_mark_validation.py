@@ -4,7 +4,7 @@ p=Path("app/src/main/java/jp/example/greenreader/MainActivity.kt")
 s=p.read_text(encoding="utf-8")
 
 start=s.find("    private fun applyMark(mode: Int, p: Vec3) {")
-end=s.find("\n    private fun currentWorldMarks", start)
+end=s.find("\n    private fun ", start + 20)
 if start < 0 or end < 0:
     raise SystemExit("v5.2 applyMark boundaries missing")
 
