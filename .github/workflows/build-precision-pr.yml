@@ -47,7 +47,9 @@ jobs:
           python3 scripts/apply_v0819_ball_center_depth_fallback.py
 
       - name: Apply Precision v1.2
-        run: python3 scripts/apply_precision_v12_integrated.py
+        run: |
+          python3 scripts/apply_precision_v12_integrated.py
+          python3 scripts/fix_precision_v12_3d_feed.py
 
       - name: Run tests and build APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
