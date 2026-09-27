@@ -69,7 +69,7 @@ object PrecisionLocalQuadraticFitter {
         // A slope is only observable when the neighborhood actually spans both
         // sides of the requested derivative. Reject one-sided edge fits instead
         // of extrapolating a steep plane from them.
-        val minSideSupport = 0.10
+        val minSideSupport = 0.07
         if (minForward > -minSideSupport || maxForward < minSideSupport ||
             minRight > -minSideSupport || maxRight < minSideSupport) {
             return null
