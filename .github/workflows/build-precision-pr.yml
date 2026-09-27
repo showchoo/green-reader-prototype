@@ -65,6 +65,7 @@ jobs:
           python3 scripts/apply_precision_v23_detailed_diagnostics.py
           python3 scripts/apply_precision_v24_runtime_tuning.py
           python3 scripts/apply_precision_v25_depth_aligned_marks.py
+          python3 scripts/apply_precision_v26_putt_corridor.py
 
       - name: Prepare fixed signing key
         shell: bash
