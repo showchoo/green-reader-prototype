@@ -22,7 +22,9 @@ class PrecisionDepthCollector(
     private var rawNonZeroPixels = 0L
     private var confidencePassedPixels = 0L
     private var fullAcquiredFrames = 0
-    private var fullNonZeroPixels = 0L\n    private var rawInRangePixels = 0L\n    private var fullInRangePixels = 0L
+    private var fullNonZeroPixels = 0L
+    private var rawInRangePixels = 0L
+    private var fullInRangePixels = 0L
     private var fallbackFrames = 0
     private var transformedValidPoints = 0L
     private var notYetAvailableCount = 0
@@ -38,7 +40,9 @@ class PrecisionDepthCollector(
         rawNonZeroPixels = 0
         confidencePassedPixels = 0
         fullAcquiredFrames = 0
-        fullNonZeroPixels = 0\n        rawInRangePixels = 0\n        fullInRangePixels = 0
+        fullNonZeroPixels = 0
+        rawInRangePixels = 0
+        fullInRangePixels = 0
         fallbackFrames = 0
         transformedValidPoints = 0
         notYetAvailableCount = 0
@@ -56,7 +60,9 @@ class PrecisionDepthCollector(
         " rawNonZero=" + rawNonZeroPixels +
         " confPass=" + confidencePassedPixels +
         " fullFrames=" + fullAcquiredFrames +
-        " fullNonZero=" + fullNonZeroPixels +\n        " rawInRange=" + rawInRangePixels +\n        " fullInRange=" + fullInRangePixels +
+        " fullNonZero=" + fullNonZeroPixels +
+        " rawInRange=" + rawInRangePixels +
+        " fullInRange=" + fullInRangePixels +
         " fallbackFrames=" + fallbackFrames +
         " transformedValid=" + transformedValidPoints +
         " acceptedFrames=" + frameTimestamps.size +
