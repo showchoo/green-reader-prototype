@@ -66,6 +66,13 @@ object PrecisionSurfaceBuilder {
         val buckets = HashMap<Key, MutableList<Sample>>()
         val frames = HashSet<Long>()
 
+        val rawMinX = points.minOfOrNull { it.x } ?: Float.NaN
+        val rawMaxX = points.maxOfOrNull { it.x } ?: Float.NaN
+        val rawMinY = points.minOfOrNull { it.y } ?: Float.NaN
+        val rawMaxY = points.maxOfOrNull { it.y } ?: Float.NaN
+        val rawMinZ = points.minOfOrNull { it.z } ?: Float.NaN
+        val rawMaxZ = points.maxOfOrNull { it.z } ?: Float.NaN
+
         // Only the turf around the intended putt line is relevant. Without this
         // gate, a large distant surface can outvote the nearby green when choosing
         // the dominant stable height band.
@@ -83,7 +90,21 @@ object PrecisionSurfaceBuilder {
                 val relZ = p.z - corridor[1]
                 val along = relX * corridor[2] + relZ * corridor[3]
                 val cross = kotlin.math.abs(-relX * corridor[3] + relZ * corridor[2])
-                if (along < -0.75f || along > corridor[4] + 0.75f || cross > 0.90f) {
+
+                val keep = if (corridor[4] < 0.60f) {
+                    // For very short putts the direction vector is numerically fragile.
+                    // Keep a generous neighborhood around the ball/cup envelope instead.
+                    val db = sqrt(relX * relX + relZ * relZ)
+                    val cupX = corridor[0] + corridor[2] * corridor[4]
+                    val cupZ = corridor[1] + corridor[3] * corridor[4]
+                    val dcx = p.x - cupX
+                    val dcz = p.z - cupZ
+                    val dc = sqrt(dcx * dcx + dcz * dcz)
+                    db <= 1.50f || dc <= 1.50f
+                } else {
+                    along >= -0.75f && along <= corridor[4] + 0.75f && cross <= 0.90f
+                }
+                if (!keep) {
                     corridorRejected++
                     continue
                 }
@@ -177,7 +198,15 @@ object PrecisionSurfaceBuilder {
         val minRadius = stable.minOfOrNull { hypot(((it.key.x + 0.5f) * voxelSizeMeters).toDouble(), ((it.key.z + 0.5f) * voxelSizeMeters).toDouble()).toFloat() }
         val maxRadius = stable.maxOfOrNull { hypot(((it.key.x + 0.5f) * voxelSizeMeters).toDouble(), ((it.key.z + 0.5f) * voxelSizeMeters).toDouble()).toFloat() }
         val radiusText = if (minRadius != null && maxRadius != null) String.format("%.2f..%.2f", minRadius, maxRadius) else "nan"
-        val stage1Diagnostic = "buckets=${buckets.size} corridorReject=$corridorRejected obsReject=$rejectObservations madReject=$rejectMad heightReject=$rejectHeight stable=${stable.size} ref=$refText refN=${dominantHeights.size} radius=$radiusText stage1=${initial.size}"
+        val marksText = if (ball != null && cup != null) {
+            " ball=(" + String.format("%.2f", ball.x) + "," + String.format("%.2f", ball.y) + "," + String.format("%.2f", ball.z) + ")" +
+            " cup=(" + String.format("%.2f", cup.x) + "," + String.format("%.2f", cup.y) + "," + String.format("%.2f", cup.z) + ")"
+        } else ""
+        val rawSpanText =
+            " rawX=" + String.format("%.2f..%.2f", rawMinX, rawMaxX) +
+            " rawY=" + String.format("%.2f..%.2f", rawMinY, rawMaxY) +
+            " rawZ=" + String.format("%.2f..%.2f", rawMinZ, rawMaxZ)
+        val stage1Diagnostic = "buckets=${buckets.size} corridorReject=$corridorRejected obsReject=$rejectObservations madReject=$rejectMad heightReject=$rejectHeight stable=${stable.size} ref=$refText refN=${dominantHeights.size} radius=$radiusText stage1=${initial.size}" + marksText + rawSpanText
 
         if (initial.isEmpty()) {
             lastDiagnostic = "$stage1Diagnostic seed=0 connected=0 median=0"
