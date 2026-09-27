@@ -102,4 +102,52 @@ class SlopeConsensusTest {
         assertTrue(strong != null)
         assertTrue(strong!!.overallCrossPercent < 0f)
     }
+    @Test
+    fun flatFloorBiasIsSuppressed() {
+        val consensus = SlopeConsensus.combine(
+            listOf(
+                report(0.32f),
+                report(0.41f),
+                report(0.47f),
+                report(0.38f),
+                report(0.45f)
+            ),
+            minAgree = 4
+        )
+        assertTrue(consensus != null)
+        assertEquals(0f, consensus!!.overallCrossPercent, 0.001f)
+        assertTrue(consensus.segments.all { kotlin.math.abs(it.crossPercent) < 0.001f })
+    }
+
+    @Test
+    fun weakSlopeNeedsUnanimousDirection() {
+        val consensus = SlopeConsensus.combine(
+            listOf(
+                report(0.82f),
+                report(0.77f),
+                report(0.88f),
+                report(0.79f),
+                report(-0.68f)
+            ),
+            minAgree = 4
+        )
+        assertTrue(consensus != null)
+        assertEquals(0f, consensus!!.overallCrossPercent, 0.001f)
+    }
+
+    @Test
+    fun clearSlopeSurvivesFlatGuard() {
+        val consensus = SlopeConsensus.combine(
+            listOf(
+                report(-1.7f),
+                report(-1.8f),
+                report(-1.6f),
+                report(-1.9f),
+                report(0.2f)
+            ),
+            minAgree = 4
+        )
+        assertTrue(consensus != null)
+        assertTrue(consensus!!.overallCrossPercent < -1.5f)
+    }
 }
