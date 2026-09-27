@@ -132,7 +132,7 @@ once(
 once(
     '        val candidate = SlopeAnalyzer.analyze(points, marks.first, marks.second)\n',
     '        val precisionCandidate = if (precisionPoints.size >= 250) {\n'
-    '            val surface = PrecisionSurfaceBuilder.build(precisionPoints)\n'
+    '            val surface = PrecisionSurfaceBuilder.build(precisionPoints, marks.first, marks.second)\n'
     '            PrecisionSlopeAnalyzer.analyze(surface, marks.first, marks.second)\n'
     '        } else null\n'
     '        val candidate = precisionCandidate\n',
@@ -145,7 +145,7 @@ once(
 
 once(
     '        autoStopPending = true\n        captureRequested = true\n        runOnUiThread {\n            status.text = "複数回の測定結果を照合しました。解析中…"\n        }\n',
-    '        precisionSurface = if (precisionLogPoints.size >= 500) PrecisionSurfaceBuilder.build(precisionLogPoints) else null\n'
+    '        precisionSurface = if (precisionLogPoints.size >= 500) PrecisionSurfaceBuilder.build(precisionLogPoints, marks.first, marks.second) else null\n'
     '        autoStopPending = true\n'
     '        captureRequested = true\n'
     '        runOnUiThread {\n'
