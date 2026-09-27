@@ -18,6 +18,7 @@ object PrecisionSurfaceBuilder {
     private data class Key(val x: Int, val z: Int)
     private data class Sample(val h: Float, val c: Float, val frame: Long)
     private data class Candidate(val key: Key, val cell: PrecisionSurfaceCell)
+    private data class StableCell(val key: Key, val med: Float, val mad: Float, val confidence: Float, val observations: Int)
 
     fun build(
         points: List<PrecisionDepthPoint>,
@@ -42,11 +43,14 @@ object PrecisionSurfaceBuilder {
             frames += p.frameTimestampNs
         }
 
-        // Stage 1: temporal stability + robust height estimate in each X/Z voxel.
+        // Stage 1a: temporal stability + robust height estimate in each X/Z voxel.
+        // Do NOT assume the ARCore ball-anchor Y is exactly the physical turf height.
+        // On some devices the hit-test anchor and depth cloud can have a persistent
+        // vertical offset even though both are otherwise geometrically correct.
         var rejectObservations = 0
         var rejectMad = 0
         var rejectHeight = 0
-        val initial = ArrayList<Candidate>()
+        val stable = ArrayList<StableCell>()
         for ((key, values) in buckets) {
             val unique = values.mapTo(HashSet()) { it.frame }.size
             if (unique < minObservations) { rejectObservations++; continue }
@@ -57,30 +61,56 @@ object PrecisionSurfaceBuilder {
             val mad = median(deviations)
             if (!med.isFinite() || !mad.isFinite() || mad > maxMadMeters) { rejectMad++; continue }
 
-            val x = (key.x + 0.5f) * voxelSizeMeters
-            val z = (key.z + 0.5f) * voxelSizeMeters
-            val radius = hypot(x.toDouble(), z.toDouble()).toFloat()
-
-            // Ball-relative ground must remain in a physically plausible height band.
-            // Allows up to 8% true grade plus 7 cm of ARCore zero-height uncertainty.
-            val allowedHeight = 0.07f + maxExpectedGrade * radius
-            if (abs(med) > allowedHeight) { rejectHeight++; continue }
-
-            val meanConf = values.map { it.c }.average().toFloat()
-            initial += Candidate(
-                key,
-                PrecisionSurfaceCell(
-                    x = x,
-                    z = z,
-                    height = med,
-                    confidence = meanConf,
-                    observations = unique,
-                    madMeters = mad
-                )
+            stable += StableCell(
+                key = key,
+                med = med,
+                mad = mad,
+                confidence = values.map { it.c }.average().toFloat(),
+                observations = unique
             )
         }
 
-        val stage1Diagnostic = "buckets=${buckets.size} obsReject=$rejectObservations madReject=$rejectMad heightReject=$rejectHeight stage1=${initial.size}"
+        // Stage 1b: estimate the actual turf reference height from stable cells close
+        // to the ball. A robust median makes a constant ARCore anchor/depth Y offset
+        // harmless while still rejecting distant geometry.
+        val nearReferenceHeights = stable.mapNotNull { sc ->
+            val x = (sc.key.x + 0.5f) * voxelSizeMeters
+            val z = (sc.key.z + 0.5f) * voxelSizeMeters
+            val radius = hypot(x.toDouble(), z.toDouble()).toFloat()
+            if (radius <= 1.00f && abs(sc.med) <= 0.50f) sc.med else null
+        }.sorted()
+        val groundReference = median(nearReferenceHeights)
+
+        val initial = ArrayList<Candidate>()
+        if (groundReference.isFinite()) {
+            for (sc in stable) {
+                val x = (sc.key.x + 0.5f) * voxelSizeMeters
+                val z = (sc.key.z + 0.5f) * voxelSizeMeters
+                val radius = hypot(x.toDouble(), z.toDouble()).toFloat()
+
+                // Accept realistic grade around the observed turf reference rather
+                // than around an assumed exact anchor Y=0.
+                val allowedHeight = 0.10f + maxExpectedGrade * radius
+                if (abs(sc.med - groundReference) > allowedHeight) { rejectHeight++; continue }
+
+                initial += Candidate(
+                    sc.key,
+                    PrecisionSurfaceCell(
+                        x = x,
+                        z = z,
+                        height = sc.med,
+                        confidence = sc.confidence,
+                        observations = sc.observations,
+                        madMeters = sc.mad
+                    )
+                )
+            }
+        } else {
+            rejectHeight = stable.size
+        }
+
+        val refText = if (groundReference.isFinite()) String.format("%.3f", groundReference) else "nan"
+        val stage1Diagnostic = "buckets=${buckets.size} obsReject=$rejectObservations madReject=$rejectMad heightReject=$rejectHeight stable=${stable.size} ref=$refText refN=${nearReferenceHeights.size} stage1=${initial.size}"
 
         if (initial.isEmpty()) {
             lastDiagnostic = "$stage1Diagnostic seed=0 connected=0 median=0"
@@ -101,10 +131,10 @@ object PrecisionSurfaceBuilder {
         // elsewhere in the image becoming the dominant connected surface.
         val seedKeys = initial
             .filter {
-                hypot(it.cell.x.toDouble(), it.cell.z.toDouble()) <= 0.80 &&
-                    abs(it.cell.height) <= 0.14f
+                hypot(it.cell.x.toDouble(), it.cell.z.toDouble()) <= 0.90 &&
+                    abs(it.cell.height - groundReference) <= 0.14f
             }
-            .sortedBy { abs(it.cell.height) }
+            .sortedBy { abs(it.cell.height - groundReference) }
             .take(16)
             .map { it.key }
 
