@@ -40,10 +40,21 @@ old2='''        val bt = levelFrame.worldToLocal(bAnchor.pose.translation)
 new2='''        val bt = levelFrame.worldToLocal(bAnchor.pose.translation)
         val ct = levelFrame.worldToLocal(cAnchor.pose.translation)
 
-        // A putting green cannot have a multi-metre vertical jump between the
-        // ball and cup. Fail closed before scanning if one mark latched onto
-        // background geometry.
-        if (kotlin.math.abs(ct[1] - bt[1]) > 0.35f) return null
+        // Validate vertical separation against the horizontal ball-cup
+        // distance. A fixed 35 cm gate was too permissive for short putts:
+        // e.g. 32 cm horizontally and 33 cm vertically could slip through.
+        val markDx = ct[0] - bt[0]
+        val markDz = ct[2] - bt[2]
+        val horizontalDistance = kotlin.math.sqrt(markDx * markDx + markDz * markDz)
+        val verticalDifference = kotlin.math.abs(ct[1] - bt[1])
+        val maxVerticalDifference = kotlin.math.max(
+            0.08f,
+            horizontalDistance * 0.12f + 0.04f
+        )
+        if (!horizontalDistance.isFinite() || !verticalDifference.isFinite() ||
+            verticalDifference > maxVerticalDifference) {
+            return null
+        }
 
         return Vec3(bt[0], bt[1], bt[2]) to Vec3(ct[0], ct[1], ct[2])
 '''
