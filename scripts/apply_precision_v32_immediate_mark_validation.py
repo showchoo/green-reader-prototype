@@ -48,6 +48,7 @@ new_apply=r'''    private fun applyMark(mode: Int, p: Vec3) {
                     newAnchor.detach()
                     markMode = 2
                     status.text = "カップ位置の高さが不自然です。カップをもう一度タップしてください"
+                    showPrecisionFailureDialog("カップ位置を取得できませんでした。もう一度カップをタップしてください")
                     return
                 }
             }
