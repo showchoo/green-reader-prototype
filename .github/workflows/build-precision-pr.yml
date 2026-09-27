@@ -1,4 +1,4 @@
-name: Build Green Reader Precision Direct UI APK
+name: Export fully patched Green Reader source
 
 on:
   pull_request:
@@ -6,38 +6,37 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  export:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore and verify source bundle
+      - name: Apply all proven v0.8.19 patches
         shell: bash
         run: |
-          cat precision-ui2/part00 precision-ui2/part01 precision-ui2/part02 precision-ui2/part03 precision-ui2/part04 precision-ui2/part05 precision-ui2/part06 precision-ui2/part07 | tr -d '\n\r' | base64 -d > precision-v1.1.zip
-          echo "a9d62a5e23da459cd1a021cd2332b6ec6d4d00f096b36af092c50b4bf69f4f1c  precision-v1.1.zip" | sha256sum -c -
-          unzip -q precision-v1.1.zip
-          test -f green-reader-v1/settings.gradle.kts
+          python3 scripts/apply_power_saving.py
+          python3 scripts/apply_v070_ui.py
+          python3 scripts/apply_v072_clean_result.py
+          python3 scripts/apply_v073_no_stimp.py
+          python3 scripts/apply_v074_auto_grain.py
+          python3 scripts/apply_v075_full_auto_log.py
+          python3 scripts/apply_v078_screen_cross.py
+          python3 scripts/apply_v079_bottom_inset.py
+          python3 scripts/apply_v080_depth_first_marks.py
+          python3 scripts/apply_v081_anchor_local_frame.py
+          python3 scripts/apply_v082_auto_mark_sequence.py
+          python3 scripts/apply_v083_open_saved_data.py
+          python3 scripts/apply_v084_data_manager.py
+          python3 scripts/apply_v087_anchor_cross_projection.py
+          python3 scripts/apply_v0812_consensus_scan.py
+          python3 scripts/apply_v0818_known_good_geometry.py
+          python3 scripts/apply_v0819_ball_center_depth_fallback.py
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
-      - name: Run tests and build APK
-        working-directory: green-reader-v1
-        run: |
-          gradle testDebugUnitTest :app:assembleDebug
-
-      - name: Rename APK
-        run: cp green-reader-v1/app/build/outputs/apk/debug/app-debug.apk GreenReaderPrecision-v1.1-direct-ui.apk
+      - name: Pack patched source
+        run: zip -qr GreenReader-v0.8.19-patched-source.zip app scripts build.gradle.kts settings.gradle.kts gradle.properties
 
       - uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrecision-v1.1-direct-ui
-          path: GreenReaderPrecision-v1.1-direct-ui.apk
+          name: GreenReader-v0.8.19-patched-source
+          path: GreenReader-v0.8.19-patched-source.zip
           if-no-files-found: error
