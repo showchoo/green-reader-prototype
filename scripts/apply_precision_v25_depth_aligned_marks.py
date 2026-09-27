@@ -11,17 +11,14 @@ def once(old, new, label):
 
 once(
 '''    private fun resolveMarkPoint(frame: Frame, x: Float, y: Float): Vec3? {
-        return exactHitPoint(frame, x, y)
-            ?: depthPointAtTap(frame, x, y)
+        return depthPointAtTap(frame, x, y)
+            ?: exactSurfaceHitPoint(frame, x, y)
             ?: tinyNearbyHitPoint(frame, x, y)
     }
 ''',
 '''    private fun resolveMarkPoint(frame: Frame, x: Float, y: Float): Vec3? {
-        // Precision analysis must keep marks on the same physical Depth surface
-        // as the accumulated point cloud. Prefer tapped Depth first; AR hit-test
-        // anchors can occasionally resolve to a distant stale/incorrect feature.
         return depthPointAtTap(frame, x, y)
-            ?: exactHitPoint(frame, x, y)
+            ?: exactSurfaceHitPoint(frame, x, y)
             ?: tinyNearbyHitPoint(frame, x, y)
     }
 
@@ -41,7 +38,8 @@ once(
 once(
 '''        val hit = frame.hitTest(x, y).firstOrNull { h ->
             val t = h.trackable
-            (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint || t is Point
+            val validType = (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint
+            validType && isPlausibleMarkHit(frame, h.hitPose)
         } ?: return null
 ''',
 '''        val hit = frame.hitTest(x, y).firstOrNull { h ->
@@ -50,13 +48,14 @@ once(
             validType && isPlausibleMarkHit(frame, h.hitPose)
         } ?: return null
 ''',
-'exact hit distance gate'
+'exact surface hit distance gate'
 )
 
 once(
 '''            val hit = frame.hitTest(sx, sy).firstOrNull { h ->
                 val t = h.trackable
-                (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint || t is Point
+                val validType = (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint
+                validType && isPlausibleMarkHit(frame, h.hitPose)
             }
 ''',
 '''            val hit = frame.hitTest(sx, sy).firstOrNull { h ->
