@@ -1,7 +1,6 @@
 package jp.example.greenreader.precision
 
 import android.media.Image
-import com.google.ar.core.Coordinates2d
 import com.google.ar.core.Frame
 import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
@@ -154,14 +153,21 @@ class PrecisionDepthCollector(
         val cp = confidence?.planes?.getOrNull(0)
         val cb = cp?.buffer
 
-        val intr = camera.imageIntrinsics
-        val focal = intr.focalLength
-        val principal = intr.principalPoint
-        val dims = intr.imageDimensions
+        // ARCore's official Raw Depth reconstruction uses texture intrinsics,
+        // scaled directly to the acquired depth image dimensions.
+        val intr = camera.textureIntrinsics
+        val intrFocal = intr.focalLength
+        val intrPrincipal = intr.principalPoint
+        val intrDims = intr.imageDimensions
+        val fx = intrFocal[0] * depth.width.toFloat() / intrDims[0].toFloat()
+        val fy = intrFocal[1] * depth.height.toFloat() / intrDims[1].toFloat()
+        val cx = intrPrincipal[0] * depth.width.toFloat() / intrDims[0].toFloat()
+        val cy = intrPrincipal[1] * depth.height.toFloat() / intrDims[1].toFloat()
 
         val step = max(2, pixelStrideStep)
         val capacity = ((depth.width + step - 1) / step) * ((depth.height + step - 1) / step)
-        val tex = FloatArray(capacity * 2)
+        val xs = IntArray(capacity)
+        val ys = IntArray(capacity)
         val zs = FloatArray(capacity)
         val confs = FloatArray(capacity)
         var count = 0
@@ -193,9 +199,8 @@ class PrecisionDepthCollector(
                     0.65f
                 }
 
-                val o = count * 2
-                tex[o] = (x + 0.5f) / depth.width.toFloat()
-                tex[o + 1] = (y + 0.5f) / depth.height.toFloat()
+                xs[count] = x
+                ys[count] = y
                 zs[count] = z
                 confs[count] = confValue
                 count++
@@ -204,29 +209,20 @@ class PrecisionDepthCollector(
 
         if (count == 0) return false
 
-        // ARCore Depth coordinates are texture-normalized coordinates. Convert
-        // directly to CPU camera IMAGE_PIXELS as documented by the Depth API.
-        // Do not pass through IMAGE_NORMALIZED and rescale again; that produced
-        // severely distorted 3D coordinates on the arrows We2.
-        val imagePixels = FloatArray(count * 2)
-        frame.transformCoordinates2d(
-            Coordinates2d.TEXTURE_NORMALIZED,
-            tex.copyOf(count * 2),
-            Coordinates2d.IMAGE_PIXELS,
-            imagePixels
-        )
-
+        // Official ARCore Raw Depth unprojection:
+        // depth pixels are in the GPU-texture aspect ratio/native orientation,
+        // so reconstruct directly in that image using texture intrinsics scaled
+        // to the acquired depth resolution. Avoid converting through CPU IMAGE_PIXELS.
         val levelFrame = GravityAlignedFrame.fromPose(referencePose)
         var added = 0
         for (i in 0 until count) {
-            val u = imagePixels[i * 2]
-            val v = imagePixels[i * 2 + 1]
-            if (!u.isFinite() || !v.isFinite()) continue
-            if (u < 0f || v < 0f || u >= dims[0].toFloat() || v >= dims[1].toFloat()) continue
-            transformedValidPoints++
+            val px = xs[i].toFloat()
+            val py = ys[i].toFloat()
             val z = zs[i]
-            val xCam = (u - principal[0]) / focal[0] * z
-            val yCam = -(v - principal[1]) / focal[1] * z
+            if (!fx.isFinite() || !fy.isFinite() || fx <= 0f || fy <= 0f) continue
+            transformedValidPoints++
+            val xCam = z * (px - cx) / fx
+            val yCam = z * (cy - py) / fy
             val world = camera.pose.transformPoint(floatArrayOf(xCam, yCam, -z))
             val local = levelFrame.worldToLocal(world)
             samples += PrecisionDepthPoint(local[0], local[1], local[2], confs[i], timestamp)
