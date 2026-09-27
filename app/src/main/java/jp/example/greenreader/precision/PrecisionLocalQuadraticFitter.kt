@@ -2,6 +2,7 @@ package jp.example.greenreader.precision
 
 import kotlin.math.exp
 import kotlin.math.sqrt
+import kotlin.math.abs
 
 /**
  * Robust local plane fit for putting-green slope.
@@ -27,57 +28,98 @@ object PrecisionLocalQuadraticFitter {
         forwardZ: Float,
         rightX: Float,
         rightZ: Float,
-        radiusMeters: Float = 0.45f
+        radiusMeters: Float = 0.32f
     ): Fit? {
-        val rows = ArrayList<Pair<DoubleArray, Pair<Double, Double>>>()
+        data class Row(
+            val forward: Double,
+            val right: Double,
+            val height: Double,
+            val baseWeight: Double
+        )
+
+        val rows = ArrayList<Row>()
         val r2 = radiusMeters * radiusMeters
+        var minForward = Double.POSITIVE_INFINITY
+        var maxForward = Double.NEGATIVE_INFINITY
+        var minRight = Double.POSITIVE_INFINITY
+        var maxRight = Double.NEGATIVE_INFINITY
 
         for (c in cells) {
             val dx = c.x - centerX
             val dz = c.z - centerZ
             if (dx * dx + dz * dz > r2) continue
 
-            val forward = dx * forwardX + dz * forwardZ
-            val right = dx * rightX + dz * rightZ
-            val dist = sqrt((forward * forward + right * right).toDouble())
-            val spatial = exp(-0.5 * (dist / (radiusMeters * 0.55)).let { it * it })
+            val forward = (dx * forwardX + dz * forwardZ).toDouble()
+            val right = (dx * rightX + dz * rightZ).toDouble()
+            val dist = sqrt(forward * forward + right * right)
+            val spatial = exp(-0.5 * (dist / (radiusMeters * 0.58)).let { it * it })
             val stability = 1.0 / (1.0 + c.madMeters * 120.0)
             val obs = c.observations.coerceAtMost(12) / 12.0
             val w = spatial * c.confidence * stability * (0.5 + 0.5 * obs)
 
-            rows += doubleArrayOf(
-                forward.toDouble(),
-                right.toDouble(),
-                1.0
-            ) to (c.height.toDouble() to w)
+            rows += Row(forward, right, c.height.toDouble(), w)
+            if (forward < minForward) minForward = forward
+            if (forward > maxForward) maxForward = forward
+            if (right < minRight) minRight = right
+            if (right > maxRight) maxRight = right
         }
 
-        if (rows.size < 8) return null
+        if (rows.size < 10) return null
 
-        val ata = Array(3) { DoubleArray(3) }
-        val aty = DoubleArray(3)
-        for ((a, yw) in rows) {
-            val y = yw.first
-            val w = yw.second
-            for (i in 0 until 3) {
-                aty[i] += w * a[i] * y
-                for (j in 0 until 3) ata[i][j] += w * a[i] * a[j]
+        // A slope is only observable when the neighborhood actually spans both
+        // sides of the requested derivative. Reject one-sided edge fits instead
+        // of extrapolating a steep plane from them.
+        val minSideSupport = 0.10
+        if (minForward > -minSideSupport || maxForward < minSideSupport ||
+            minRight > -minSideSupport || maxRight < minSideSupport) {
+            return null
+        }
+
+        fun solveWeighted(extraWeights: DoubleArray?): DoubleArray? {
+            val ata = Array(3) { DoubleArray(3) }
+            val aty = DoubleArray(3)
+            for (i in rows.indices) {
+                val r = rows[i]
+                val w = r.baseWeight * (extraWeights?.get(i) ?: 1.0)
+                val a0 = r.forward
+                val a1 = r.right
+                val a2 = 1.0
+                val a = doubleArrayOf(a0, a1, a2)
+                for (j in 0 until 3) {
+                    aty[j] += w * a[j] * r.height
+                    for (k in 0 until 3) ata[j][k] += w * a[j] * a[k]
+                }
             }
+            for (i in 0 until 3) ata[i][i] += 1e-6
+            return solve(ata, aty)
         }
 
-        // Small ridge term keeps sparse/edge neighborhoods numerically stable.
-        for (i in 0 until 3) ata[i][i] += 1e-6
-        val beta = solve(ata, aty) ?: return null
+        var beta = solveWeighted(null) ?: return null
+
+        // Two robust IRLS passes. Full Depth occasionally contributes coherent
+        // but wrong edge cells; Huber weights stop them from steering the plane.
+        repeat(2) {
+            val residuals = rows.map { r ->
+                r.height - (beta[0] * r.forward + beta[1] * r.right + beta[2])
+            }
+            val absResiduals = residuals.map { abs(it) }.sorted()
+            val medianAbs = absResiduals[absResiduals.size / 2]
+            val scale = (1.4826 * medianAbs).coerceAtLeast(0.008)
+            val huberK = 1.5 * scale
+            val robust = DoubleArray(rows.size) { i ->
+                val a = abs(residuals[i])
+                if (a <= huberK) 1.0 else huberK / a
+            }
+            beta = solveWeighted(robust) ?: return null
+        }
 
         var se = 0.0
         var sw = 0.0
-        for ((a, yw) in rows) {
-            val y = yw.first
-            val w = yw.second
-            val pred = beta[0] * a[0] + beta[1] * a[1] + beta[2]
-            val e = y - pred
-            se += w * e * e
-            sw += w
+        for (r in rows) {
+            val pred = beta[0] * r.forward + beta[1] * r.right + beta[2]
+            val e = r.height - pred
+            se += r.baseWeight * e * e
+            sw += r.baseWeight
         }
 
         return Fit(
