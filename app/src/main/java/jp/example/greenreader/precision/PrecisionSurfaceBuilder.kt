@@ -12,7 +12,9 @@ import kotlin.math.max
  * The coordinate frame is gravity-aligned and ball-relative, so y ~= 0 is the
  * expected ground height at the ball.
  */
-object PrecisionSurfaceBuilder {\n    @Volatile var lastDiagnostic: String = ""\n        private set
+object PrecisionSurfaceBuilder {
+    @Volatile var lastDiagnostic: String = ""
+        private set
     private data class Key(val x: Int, val z: Int)
     private data class Sample(val h: Float, val c: Float, val frame: Long)
     private data class Candidate(val key: Key, val cell: PrecisionSurfaceCell)
@@ -41,7 +43,10 @@ object PrecisionSurfaceBuilder {\n    @Volatile var lastDiagnostic: String = ""\
         }
 
         // Stage 1: temporal stability + robust height estimate in each X/Z voxel.
-        var rejectObservations = 0\n        var rejectMad = 0\n        var rejectHeight = 0\n        val initial = ArrayList<Candidate>()
+        var rejectObservations = 0
+        var rejectMad = 0
+        var rejectHeight = 0
+        val initial = ArrayList<Candidate>()
         for ((key, values) in buckets) {
             val unique = values.mapTo(HashSet()) { it.frame }.size
             if (unique < minObservations) { rejectObservations++; continue }
@@ -75,7 +80,10 @@ object PrecisionSurfaceBuilder {\n    @Volatile var lastDiagnostic: String = ""\
             )
         }
 
-        val stage1Diagnostic = "buckets=${buckets.size} obsReject=$rejectObservations madReject=$rejectMad heightReject=$rejectHeight stage1=${initial.size}"\n\n        if (initial.isEmpty()) {\n            lastDiagnostic = "$stage1Diagnostic seed=0 connected=0 median=0"
+        val stage1Diagnostic = "buckets=${buckets.size} obsReject=$rejectObservations madReject=$rejectMad heightReject=$rejectHeight stage1=${initial.size}"
+
+        if (initial.isEmpty()) {
+            lastDiagnostic = "$stage1Diagnostic seed=0 connected=0 median=0"
             return PrecisionSurfaceModel(
                 cells = emptyList(),
                 voxelSizeMeters = voxelSizeMeters,
@@ -102,7 +110,8 @@ object PrecisionSurfaceBuilder {\n    @Volatile var lastDiagnostic: String = ""\
 
         // If no ground can be established near the ball, fail closed. Falling back
         // to arbitrary distant geometry is exactly what produced the huge false slopes.
-        if (seedKeys.isEmpty()) {\n            lastDiagnostic = "$stage1Diagnostic seed=0 connected=0 median=0"
+        if (seedKeys.isEmpty()) {
+            lastDiagnostic = "$stage1Diagnostic seed=0 connected=0 median=0"
             return PrecisionSurfaceModel(
                 cells = emptyList(),
                 voxelSizeMeters = voxelSizeMeters,
