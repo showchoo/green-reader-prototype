@@ -1,4 +1,4 @@
-name: Build Green Reader Precision PR APK
+name: Build Green Reader Precision Direct UI APK
 
 on:
   pull_request:
@@ -14,9 +14,9 @@ jobs:
       - name: Restore and verify source bundle
         shell: bash
         run: |
-          cat precision-src/source.part00 precision-src/source.part01a precision-src/source.part01b precision-src/source.part02 precision-src/source.part03 precision-src/source.part04 precision-src/source.part05 precision-src/source.part06 precision-src/source.part07 | tr -d '\n\r' | base64 -d > precision-v1.zip
-          echo "3a4f6ae892fafcc786b66c301037afa929a5b94ee2b7a7e202d42ec8ecec7284  precision-v1.zip" | sha256sum -c -
-          unzip -q precision-v1.zip
+          cat precision-ui2/part00 precision-ui2/part01 precision-ui2/part02 precision-ui2/part03 precision-ui2/part04 precision-ui2/part05 precision-ui2/part06 precision-ui2/part07 | tr -d '\n\r' | base64 -d > precision-v1.1.zip
+          echo "a9d62a5e23da459cd1a021cd2332b6ec6d4d00f096b36af092c50b4bf69f4f1c  precision-v1.1.zip" | sha256sum -c -
+          unzip -q precision-v1.1.zip
           test -f green-reader-v1/settings.gradle.kts
 
       - uses: actions/setup-java@v4
@@ -34,10 +34,10 @@ jobs:
           gradle testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp green-reader-v1/app/build/outputs/apk/debug/app-debug.apk GreenReaderPrecision-v1.apk
+        run: cp green-reader-v1/app/build/outputs/apk/debug/app-debug.apk GreenReaderPrecision-v1.1-direct-ui.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrecision-v1
-          path: GreenReaderPrecision-v1.apk
+          name: GreenReaderPrecision-v1.1-direct-ui
+          path: GreenReaderPrecision-v1.1-direct-ui.apk
           if-no-files-found: error
