@@ -21,5 +21,8 @@ data class PrecisionSurfaceModel(
     val cells: List<PrecisionSurfaceCell>,
     val voxelSizeMeters: Float,
     val sourcePointCount: Int,
-    val uniqueFrames: Int
+    val uniqueFrames: Int,
+    val candidateCellCount: Int = cells.size,
+    val rejectedCellCount: Int = 0,
+    val groundCellCount: Int = cells.size
 )
