@@ -20,8 +20,8 @@ object PrecisionSurfaceBuilder {
     fun build(
         points: List<PrecisionDepthPoint>,
         voxelSizeMeters: Float = 0.05f,
-        minObservations: Int = 3,
-        maxMadMeters: Float = 0.025f,
+        minObservations: Int = 2,
+        maxMadMeters: Float = 0.040f,
         maxExpectedGrade: Float = 0.08f
     ): PrecisionSurfaceModel {
         if (points.isEmpty()) {
@@ -93,8 +93,8 @@ object PrecisionSurfaceBuilder {
         // elsewhere in the image becoming the dominant connected surface.
         val seedKeys = initial
             .filter {
-                hypot(it.cell.x.toDouble(), it.cell.z.toDouble()) <= 0.55 &&
-                    abs(it.cell.height) <= 0.09f
+                hypot(it.cell.x.toDouble(), it.cell.z.toDouble()) <= 0.80 &&
+                    abs(it.cell.height) <= 0.14f
             }
             .sortedBy { abs(it.cell.height) }
             .take(16)
@@ -141,7 +141,7 @@ object PrecisionSurfaceBuilder {
                     // Real putting surfaces change height gradually. 2 cm baseline
                     // tolerance plus 12% over the gap still allows steep greens but
                     // rejects vertical walls/furniture edges.
-                    val allowedStep = 0.020f + 0.12f * horizontal
+                    val allowedStep = 0.035f + 0.15f * horizontal
                     if (abs(next.height - current.height) <= allowedStep) {
                         accepted += nextKey
                         queue.addLast(nextKey)
@@ -164,9 +164,9 @@ object PrecisionSurfaceBuilder {
                     acceptedMap[Key(kx + dx, kz + dz)]?.let { neighborHeights += it.height }
                 }
             }
-            if (neighborHeights.size < 4) return@filter false
+            if (neighborHeights.size < 3) return@filter false
             val localMedian = median(neighborHeights.sorted())
-            abs(cell.height - localMedian) <= 0.025f
+            abs(cell.height - localMedian) <= 0.040f
         }
 
         return PrecisionSurfaceModel(
