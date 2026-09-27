@@ -1,6 +1,7 @@
 package jp.example.greenreader.precision
 
 import android.media.Image
+import com.google.ar.core.Coordinates2d
 import com.google.ar.core.Frame
 import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
@@ -183,6 +184,7 @@ class PrecisionDepthCollector(
 
                 val z = mm / 1000f
                 if (z !in minDepthM..maxDepthM) continue
+                if (isRaw) rawInRangePixels++ else fullInRangePixels++
 
                 val confValue = if (confidence != null && cp != null && cb != null) {
                     val cx = (x * confidence.width / depth.width).coerceIn(0, confidence.width - 1)
@@ -209,24 +211,59 @@ class PrecisionDepthCollector(
 
         if (count == 0) return false
 
-        // Official ARCore Raw Depth unprojection:
-        // depth pixels are in the GPU-texture aspect ratio/native orientation,
-        // so reconstruct directly in that image using texture intrinsics scaled
-        // to the acquired depth resolution. Avoid converting through CPU IMAGE_PIXELS.
         val levelFrame = GravityAlignedFrame.fromPose(referencePose)
         var added = 0
-        for (i in 0 until count) {
-            val px = xs[i].toFloat()
-            val py = ys[i].toFloat()
-            val z = zs[i]
-            if (!fx.isFinite() || !fy.isFinite() || fx <= 0f || fy <= 0f) continue
-            transformedValidPoints++
-            val xCam = z * (px - cx) / fx
-            val yCam = z * (cy - py) / fy
-            val world = camera.pose.transformPoint(floatArrayOf(xCam, yCam, -z))
-            val local = levelFrame.worldToLocal(world)
-            samples += PrecisionDepthPoint(local[0], local[1], local[2], confs[i], timestamp)
-            added++
+
+        if (isRaw) {
+            // Raw Depth: Google's Raw Depth sample reconstructs directly from
+            // native depth pixels with texture intrinsics scaled to depth size.
+            for (i in 0 until count) {
+                val px = xs[i].toFloat()
+                val py = ys[i].toFloat()
+                val z = zs[i]
+                if (!fx.isFinite() || !fy.isFinite() || fx <= 0f || fy <= 0f) continue
+                transformedValidPoints++
+                val xCam = z * (px - cx) / fx
+                val yCam = z * (cy - py) / fy
+                val world = camera.pose.transformPoint(floatArrayOf(xCam, yCam, -z))
+                val local = levelFrame.worldToLocal(world)
+                samples += PrecisionDepthPoint(local[0], local[1], local[2], confs[i], timestamp)
+                added++
+            }
+        } else {
+            // Full Depth: the standard Depth API documents depth coordinates in
+            // texture-normalized space and provides transformCoordinates2d() for
+            // mapping them to CPU IMAGE_PIXELS. Reconstruct with imageIntrinsics.
+            val tex = FloatArray(count * 2)
+            for (i in 0 until count) {
+                tex[i * 2] = (xs[i] + 0.5f) / depth.width.toFloat()
+                tex[i * 2 + 1] = (ys[i] + 0.5f) / depth.height.toFloat()
+            }
+            val imagePixels = FloatArray(count * 2)
+            frame.transformCoordinates2d(
+                Coordinates2d.TEXTURE_NORMALIZED,
+                tex,
+                Coordinates2d.IMAGE_PIXELS,
+                imagePixels
+            )
+            val imageIntr = camera.imageIntrinsics
+            val imageFocal = imageIntr.focalLength
+            val imagePrincipal = imageIntr.principalPoint
+            val imageDims = imageIntr.imageDimensions
+            for (i in 0 until count) {
+                val u = imagePixels[i * 2]
+                val v = imagePixels[i * 2 + 1]
+                if (!u.isFinite() || !v.isFinite()) continue
+                if (u < 0f || v < 0f || u >= imageDims[0].toFloat() || v >= imageDims[1].toFloat()) continue
+                val z = zs[i]
+                transformedValidPoints++
+                val xCam = (u - imagePrincipal[0]) / imageFocal[0] * z
+                val yCam = -(v - imagePrincipal[1]) / imageFocal[1] * z
+                val world = camera.pose.transformPoint(floatArrayOf(xCam, yCam, -z))
+                val local = levelFrame.worldToLocal(world)
+                samples += PrecisionDepthPoint(local[0], local[1], local[2], confs[i], timestamp)
+                added++
+            }
         }
 
         if (added > 0) {
