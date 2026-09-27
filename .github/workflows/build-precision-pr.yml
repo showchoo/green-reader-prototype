@@ -59,7 +59,6 @@ jobs:
           python3 scripts/apply_precision_v20_oauth_signing.py
 
       - name: Prepare fixed signing key
-        if: ${{ secrets.GREEN_READER_KEYSTORE_B64 != '' }}
         shell: bash
         env:
           GREEN_READER_KEYSTORE_B64: ${{ secrets.GREEN_READER_KEYSTORE_B64 }}
@@ -67,11 +66,15 @@ jobs:
           GREEN_READER_KEY_ALIAS_SECRET: ${{ secrets.GREEN_READER_KEY_ALIAS }}
           GREEN_READER_KEY_PASSWORD_SECRET: ${{ secrets.GREEN_READER_KEY_PASSWORD }}
         run: |
-          echo "$GREEN_READER_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/greenreader-release.jks"
-          echo "GREEN_READER_KEYSTORE_PATH=$RUNNER_TEMP/greenreader-release.jks" >> "$GITHUB_ENV"
-          echo "GREEN_READER_STORE_PASSWORD=$GREEN_READER_STORE_PASSWORD_SECRET" >> "$GITHUB_ENV"
-          echo "GREEN_READER_KEY_ALIAS=$GREEN_READER_KEY_ALIAS_SECRET" >> "$GITHUB_ENV"
-          echo "GREEN_READER_KEY_PASSWORD=$GREEN_READER_KEY_PASSWORD_SECRET" >> "$GITHUB_ENV"
+          if [ -n "$GREEN_READER_KEYSTORE_B64" ]; then
+            echo "$GREEN_READER_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/greenreader-release.jks"
+            echo "GREEN_READER_KEYSTORE_PATH=$RUNNER_TEMP/greenreader-release.jks" >> "$GITHUB_ENV"
+            echo "GREEN_READER_STORE_PASSWORD=$GREEN_READER_STORE_PASSWORD_SECRET" >> "$GITHUB_ENV"
+            echo "GREEN_READER_KEY_ALIAS=$GREEN_READER_KEY_ALIAS_SECRET" >> "$GITHUB_ENV"
+            echo "GREEN_READER_KEY_PASSWORD=$GREEN_READER_KEY_PASSWORD_SECRET" >> "$GITHUB_ENV"
+          else
+            echo "No fixed signing secret configured; building unsigned release APK"
+          fi
 
       - name: Run tests and build APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleRelease
