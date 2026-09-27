@@ -70,8 +70,10 @@ object PrecisionLocalQuadraticFitter {
         // sides of the requested derivative. Reject one-sided edge fits instead
         // of extrapolating a steep plane from them.
         val minSideSupport = 0.07
-        if (minForward > -minSideSupport || maxForward < minSideSupport ||
-            minRight > -minSideSupport || maxRight < minSideSupport) {
+        // Require support on both sides only for the cross-slope derivative.
+        // Along the putt line, the first/last segment legitimately sits near an
+        // endpoint and may have one-sided forward support.
+        if (minRight > -minSideSupport || maxRight < minSideSupport) {
             return null
         }
 
