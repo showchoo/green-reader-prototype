@@ -104,10 +104,13 @@ jobs:
         shell: bash
         run: |
           APK="$PWD/GreenReaderPrecision-v2.4-debug.apk"
+          cp "$APK" "$RUNNER_TEMP/GreenReaderPrecision-v2.4-debug.apk"
           git fetch origin apk-downloads
+          git reset --hard
+          git clean -fd
           git checkout -B apk-downloads origin/apk-downloads
           mkdir -p downloads
-          cp "$APK" downloads/GreenReaderPrecision-v2.4-debug.apk
+          cp "$RUNNER_TEMP/GreenReaderPrecision-v2.4-debug.apk" downloads/GreenReaderPrecision-v2.4-debug.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add downloads/GreenReaderPrecision-v2.4-debug.apk
