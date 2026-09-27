@@ -77,18 +77,19 @@ jobs:
           fi
 
       - name: Run tests and build APK
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleRelease
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
         shell: bash
         run: |
-          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -n 1)"
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)"
           test -n "$APK"
-          cp "$APK" GreenReaderPrecision-v2.0.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
+          cp "$APK" GreenReaderPrecision-v2.0-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrecision-v2.0
-          path: GreenReaderPrecision-v2.0.apk
+          name: GreenReaderPrecision-v2.0-debug
+          path: GreenReaderPrecision-v2.0-debug.apk
           if-no-files-found: error
           retention-days: 90
