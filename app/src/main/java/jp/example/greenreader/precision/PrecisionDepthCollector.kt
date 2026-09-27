@@ -5,6 +5,7 @@ import com.google.ar.core.Frame
 import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
 import com.google.ar.core.exceptions.NotYetAvailableException
+import jp.example.greenreader.analysis.GravityAlignedFrame
 import java.nio.ByteOrder
 import kotlin.math.max
 
@@ -89,7 +90,7 @@ class PrecisionDepthCollector(
                         Coordinates2d.IMAGE_PIXELS,
                         image
                     )
-                    val inverseReference = referencePose.inverse()
+                    val levelFrame = GravityAlignedFrame.fromPose(referencePose)
                     for (i in 0 until count) {
                         val u = image[i * 2]
                         val v = image[i * 2 + 1]
@@ -99,7 +100,7 @@ class PrecisionDepthCollector(
                         val xCam = (u - principal[0]) / focal[0] * z
                         val yCam = -(v - principal[1]) / focal[1] * z
                         val world = camera.pose.transformPoint(floatArrayOf(xCam, yCam, -z))
-                        val local = inverseReference.transformPoint(world)
+                        val local = levelFrame.worldToLocal(world)
                         samples += PrecisionDepthPoint(local[0], local[1], local[2], confs[i], timestamp)
                     }
                     frameTimestamps += timestamp
