@@ -181,8 +181,8 @@ object PrecisionSurfaceBuilder {
             val currentKey = queue.removeFirst()
             val current = map[currentKey]?.cell ?: continue
 
-            for (dx in -2..2) {
-                for (dz in -2..2) {
+            for (dx in -3..3) {
+                for (dz in -3..3) {
                     if (dx == 0 && dz == 0) continue
                     val nextKey = Key(currentKey.x + dx, currentKey.z + dz)
                     if (accepted.contains(nextKey)) continue
@@ -196,7 +196,7 @@ object PrecisionSurfaceBuilder {
                     // Real putting surfaces change height gradually. 2 cm baseline
                     // tolerance plus 12% over the gap still allows steep greens but
                     // rejects vertical walls/furniture edges.
-                    val allowedStep = 0.035f + 0.15f * horizontal
+                    val allowedStep = 0.045f + 0.15f * horizontal
                     if (abs(next.height - current.height) <= allowedStep) {
                         accepted += nextKey
                         queue.addLast(nextKey)
@@ -205,7 +205,8 @@ object PrecisionSurfaceBuilder {
             }
         }
 
-        var ground = accepted.mapNotNull { map[it]?.cell }
+        val connectedGround = accepted.mapNotNull { map[it]?.cell }
+        var ground = connectedGround
 
         // Stage 4: local median consistency. Removes isolated spikes that happen to
         // connect through one noisy cell.
@@ -219,10 +220,19 @@ object PrecisionSurfaceBuilder {
                     acceptedMap[Key(kx + dx, kz + dz)]?.let { neighborHeights += it.height }
                 }
             }
-            if (neighborHeights.size < 3) return@filter false
+            if (neighborHeights.size < 2) return@filter false
             val localMedian = median(neighborHeights.sorted())
-            abs(cell.height - localMedian) <= 0.040f
+            abs(cell.height - localMedian) <= 0.050f
         }
+
+        val medianCount = ground.size
+        var usedConnectedFallback = false
+        if (ground.size < 25 && connectedGround.size >= 25) {
+            ground = connectedGround
+            usedConnectedFallback = true
+        }
+
+        lastDiagnostic = "$stage1Diagnostic seed=${seedKeys.size} connected=${connectedGround.size} median=$medianCount fallback=${if (usedConnectedFallback) 1 else 0} final=${ground.size}"
 
         return PrecisionSurfaceModel(
             cells = ground,
