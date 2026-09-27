@@ -1,4 +1,4 @@
-name: Build Green Reader Precision v1.7
+name: Build Green Reader Precision v1.8
 
 on:
   pull_request:
@@ -46,7 +46,7 @@ jobs:
           python3 scripts/apply_v0818_known_good_geometry.py
           python3 scripts/apply_v0819_ball_center_depth_fallback.py
 
-      - name: Apply Precision v1.7
+      - name: Apply Precision v1.8
         run: |
           python3 scripts/apply_precision_v12_integrated.py
           python3 scripts/fix_precision_v12_3d_feed.py
@@ -54,16 +54,17 @@ jobs:
           python3 scripts/apply_precision_v15_ground_extraction.py
           python3 scripts/apply_precision_v16_fail_closed.py
           python3 scripts/apply_precision_v17_relaxed_diagnostics.py
+          python3 scripts/apply_precision_v18_persistent_diagnostics.py
 
       - name: Run tests and build APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrecision-v1.7.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrecision-v1.8.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrecision-v1.7
-          path: GreenReaderPrecision-v1.7.apk
+          name: GreenReaderPrecision-v1.8
+          path: GreenReaderPrecision-v1.8.apk
           if-no-files-found: error
           retention-days: 90
