@@ -51,16 +51,66 @@ new2='''        val bt = levelFrame.worldToLocal(bAnchor.pose.translation)
             0.08f,
             horizontalDistance * 0.12f + 0.04f
         )
-        if (!horizontalDistance.isFinite() || !verticalDifference.isFinite() ||
-            verticalDifference > maxVerticalDifference) {
+        if (!horizontalDistance.isFinite() || !verticalDifference.isFinite()) {
+            precisionLastDiagnostic =
+                "MARK invalid-number horizontal=" + String.format("%.3f", horizontalDistance) +
+                " vertical=" + String.format("%.3f", verticalDifference)
             return null
         }
+        if (verticalDifference > maxVerticalDifference) {
+            precisionLastDiagnostic =
+                "MARK vertical-mismatch horizontal=" + String.format("%.3f", horizontalDistance) +
+                " vertical=" + String.format("%.3f", verticalDifference) +
+                " limit=" + String.format("%.3f", maxVerticalDifference) +
+                " ball=(" + String.format("%.2f", bt[0]) + "," +
+                    String.format("%.2f", bt[1]) + "," + String.format("%.2f", bt[2]) + ")" +
+                " cup=(" + String.format("%.2f", ct[0]) + "," +
+                    String.format("%.2f", ct[1]) + "," + String.format("%.2f", ct[2]) + ")"
+            return null
+        }
+
+        precisionLastDiagnostic =
+            "MARK ok horizontal=" + String.format("%.3f", horizontalDistance) +
+            " vertical=" + String.format("%.3f", verticalDifference) +
+            " limit=" + String.format("%.3f", maxVerticalDifference)
 
         return Vec3(bt[0], bt[1], bt[2]) to Vec3(ct[0], ct[1], ct[2])
 '''
 if old2 not in s:
     raise SystemExit("v4.4 target missing: currentAnalysisMarks")
 s=s.replace(old2,new2,1)
+
+
+# Add explicit diagnostics for missing/not-tracking anchors inside currentAnalysisMarks only.
+fn_start = s.find("    private fun currentAnalysisMarks(): Pair<Vec3, Vec3>? {")
+fn_end = s.find("\n    private fun ", fn_start + 10)
+if fn_start < 0 or fn_end < 0:
+    raise SystemExit("v5.0 currentAnalysisMarks boundaries missing")
+fn = s[fn_start:fn_end]
+fn = fn.replace(
+    "        val bAnchor = ballAnchor ?: return null\n",
+    '        val bAnchor = ballAnchor ?: run { precisionLastDiagnostic = "MARK ballAnchor=null"; return null }\\n',
+    1
+)
+fn = fn.replace(
+    "        val cAnchor = cupAnchor ?: return null\n",
+    '        val cAnchor = cupAnchor ?: run { precisionLastDiagnostic = "MARK cupAnchor=null"; return null }\\n',
+    1
+)
+old_tracking = """        if (bAnchor.trackingState != TrackingState.TRACKING ||
+            cAnchor.trackingState != TrackingState.TRACKING) return null
+"""
+new_tracking = """        if (bAnchor.trackingState != TrackingState.TRACKING ||
+            cAnchor.trackingState != TrackingState.TRACKING) {
+            precisionLastDiagnostic =
+                "MARK tracking ball=" + bAnchor.trackingState +
+                " cup=" + cAnchor.trackingState
+            return null
+        }
+"""
+if old_tracking in fn:
+    fn = fn.replace(old_tracking, new_tracking, 1)
+s = s[:fn_start] + fn + s[fn_end:]
 
 p.write_text(s,encoding="utf-8")
 print("Applied Precision v4.4 fail-closed marker validation")
