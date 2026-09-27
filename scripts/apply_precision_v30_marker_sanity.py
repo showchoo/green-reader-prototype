@@ -89,12 +89,12 @@ if fn_start < 0 or fn_end < 0:
 fn = s[fn_start:fn_end]
 fn = fn.replace(
     "        val bAnchor = ballAnchor ?: return null\n",
-    '        val bAnchor = ballAnchor ?: run { precisionLastDiagnostic = "MARK ballAnchor=null"; return null }\\n',
+    '        val bAnchor = ballAnchor ?: run { precisionLastDiagnostic = "MARK ballAnchor=null"; return null }\n',
     1
 )
 fn = fn.replace(
     "        val cAnchor = cupAnchor ?: return null\n",
-    '        val cAnchor = cupAnchor ?: run { precisionLastDiagnostic = "MARK cupAnchor=null"; return null }\\n',
+    '        val cAnchor = cupAnchor ?: run { precisionLastDiagnostic = "MARK cupAnchor=null"; return null }\n',
     1
 )
 old_tracking = """        if (bAnchor.trackingState != TrackingState.TRACKING ||
