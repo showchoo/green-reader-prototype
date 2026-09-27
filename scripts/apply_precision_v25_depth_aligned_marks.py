@@ -32,19 +32,18 @@ once(
         return d2.isFinite() && d2 >= 0.04f && d2 <= 25.0f
     }
 ''',
-'depth-first mark resolution'
+'mark hit plausibility helper'
 )
 
 once(
 '''        val hit = frame.hitTest(x, y).firstOrNull { h ->
             val t = h.trackable
-            val validType = (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint
-            validType && isPlausibleMarkHit(frame, h.hitPose)
+            (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint
         } ?: return null
 ''',
 '''        val hit = frame.hitTest(x, y).firstOrNull { h ->
             val t = h.trackable
-            val validType = (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint || t is Point
+            val validType = (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint
             validType && isPlausibleMarkHit(frame, h.hitPose)
         } ?: return null
 ''',
@@ -54,13 +53,12 @@ once(
 once(
 '''            val hit = frame.hitTest(sx, sy).firstOrNull { h ->
                 val t = h.trackable
-                val validType = (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint
-                validType && isPlausibleMarkHit(frame, h.hitPose)
+                (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint
             }
 ''',
 '''            val hit = frame.hitTest(sx, sy).firstOrNull { h ->
                 val t = h.trackable
-                val validType = (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint || t is Point
+                val validType = (t is Plane && t.isPoseInPolygon(h.hitPose)) || t is DepthPoint
                 validType && isPlausibleMarkHit(frame, h.hitPose)
             }
 ''',
@@ -68,4 +66,4 @@ once(
 )
 
 p.write_text(s, encoding="utf-8")
-print("Applied Precision v3.5 Depth-first mark alignment")
+print("Applied Precision v3.5 Depth-aligned mark hit gating")
