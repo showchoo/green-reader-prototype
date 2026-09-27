@@ -56,5 +56,19 @@ new_helper=r'''    private fun copyPrecisionDiagnostic(full: String) {
 
 '''
 s=s[:start]+new_helper+s[end:]
+
+
+# Marker/anchor sanity failures take a different early-return path than slope
+# failures. Route those through the same persistent/copyable diagnostic dialog.
+tracking_status='''                    status.text = "位置追跡が安定しませんでした。もう一度スキャンしてください"'''
+tracking_dialog='''                    showPrecisionFailureDialog("位置追跡が安定しませんでした。もう一度スキャンしてください")'''
+if tracking_status in s:
+    s=s.replace(tracking_status, tracking_dialog)
+
+final_tracking='''            if (updateStatus) status.text = "位置追跡が不安定です。端末を少し動かして再試行してください"'''
+final_tracking_dialog='''            if (updateStatus) showPrecisionFailureDialog("位置追跡が不安定です。端末を少し動かして再試行してください")'''
+if final_tracking in s:
+    s=s.replace(final_tracking, final_tracking_dialog)
+
 p.write_text(s,encoding="utf-8")
 print("Applied Precision v4.6 reliable diagnostic copy dialog")
