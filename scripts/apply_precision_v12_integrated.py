@@ -134,7 +134,7 @@ once(
     '            val surface = PrecisionSurfaceBuilder.build(precisionPoints)\n'
     '            PrecisionSlopeAnalyzer.analyze(surface, marks.first, marks.second)\n'
     '        } else null\n'
-    '        val candidate = precisionCandidate ?: SlopeAnalyzer.analyze(points, marks.first, marks.second)\n',
+    '        val candidate = precisionCandidate\n',
     'precision candidate')
 
 once(
