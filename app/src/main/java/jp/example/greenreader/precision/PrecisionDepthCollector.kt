@@ -204,25 +204,26 @@ class PrecisionDepthCollector(
 
         if (count == 0) return false
 
-        val imageNorm = FloatArray(count * 2)
+        // ARCore Depth coordinates are texture-normalized coordinates. Convert
+        // directly to CPU camera IMAGE_PIXELS as documented by the Depth API.
+        // Do not pass through IMAGE_NORMALIZED and rescale again; that produced
+        // severely distorted 3D coordinates on the arrows We2.
+        val imagePixels = FloatArray(count * 2)
         frame.transformCoordinates2d(
             Coordinates2d.TEXTURE_NORMALIZED,
             tex.copyOf(count * 2),
-            Coordinates2d.IMAGE_NORMALIZED,
-            imageNorm
+            Coordinates2d.IMAGE_PIXELS,
+            imagePixels
         )
 
         val levelFrame = GravityAlignedFrame.fromPose(referencePose)
         var added = 0
         for (i in 0 until count) {
-            val nu = imageNorm[i * 2]
-            val nv = imageNorm[i * 2 + 1]
-            if (!nu.isFinite() || !nv.isFinite()) continue
-            if (nu < 0f || nv < 0f || nu > 1f || nv > 1f) continue
+            val u = imagePixels[i * 2]
+            val v = imagePixels[i * 2 + 1]
+            if (!u.isFinite() || !v.isFinite()) continue
+            if (u < 0f || v < 0f || u >= dims[0].toFloat() || v >= dims[1].toFloat()) continue
             transformedValidPoints++
-
-            val u = nu * dims[0]
-            val v = nv * dims[1]
             val z = zs[i]
             val xCam = (u - principal[0]) / focal[0] * z
             val yCam = -(v - principal[1]) / focal[1] * z
