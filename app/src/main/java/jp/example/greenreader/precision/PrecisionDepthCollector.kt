@@ -10,21 +10,45 @@ import java.nio.ByteOrder
 import kotlin.math.max
 
 class PrecisionDepthCollector(
-    private val confidenceThreshold: Int = 160
+    private val confidenceThreshold: Int = 128
 ) {
     private val samples = ArrayList<PrecisionDepthPoint>(70000)
     private val frameTimestamps = LinkedHashSet<Long>()
     private var lastRawTimestamp = Long.MIN_VALUE
+    private var attemptedFrames = 0
+    private var rawAcquiredFrames = 0
+    private var rawNonZeroPixels = 0L
+    private var confidencePassedPixels = 0L
+    private var notYetAvailableCount = 0
+    private var otherErrorCount = 0
+    private var lastError = ""
 
     @Synchronized fun clear() {
         samples.clear()
         frameTimestamps.clear()
         lastRawTimestamp = Long.MIN_VALUE
+        attemptedFrames = 0
+        rawAcquiredFrames = 0
+        rawNonZeroPixels = 0
+        confidencePassedPixels = 0
+        notYetAvailableCount = 0
+        otherErrorCount = 0
+        lastError = ""
     }
 
     @Synchronized fun size(): Int = samples.size
     @Synchronized fun uniqueFrames(): Int = frameTimestamps.size
     @Synchronized fun snapshot(): List<PrecisionDepthPoint> = samples.toList()
+    @Synchronized fun diagnosticSummary(): String =
+        "attempts=" + attemptedFrames +
+        " rawFrames=" + rawAcquiredFrames +
+        " nonZero=" + rawNonZeroPixels +
+        " confPass=" + confidencePassedPixels +
+        " acceptedFrames=" + frameTimestamps.size +
+        " points=" + samples.size +
+        " notYet=" + notYetAvailableCount +
+        " errors=" + otherErrorCount +
+        " lastError=" + (if (lastError.isBlank()) "-" else lastError)
 
     @Synchronized
     fun integrate(
@@ -36,9 +60,11 @@ class PrecisionDepthCollector(
     ) {
         val camera = frame.camera
         if (camera.trackingState != TrackingState.TRACKING) return
+        attemptedFrames++
         try {
             frame.acquireRawDepthImage16Bits().use { depth ->
                 val timestamp = depth.timestamp
+                rawAcquiredFrames++
                 if (timestamp == lastRawTimestamp) return
                 frame.acquireRawDepthConfidenceImage().use { confidence ->
                     lastRawTimestamp = timestamp
@@ -63,6 +89,7 @@ class PrecisionDepthCollector(
                             if (di + 1 >= db.limit()) continue
                             val mm = java.lang.Short.toUnsignedInt(db.getShort(di))
                             if (mm == 0) continue
+                            rawNonZeroPixels++
                             val z = mm / 1000f
                             if (z !in minDepthM..maxDepthM) continue
 
@@ -72,6 +99,7 @@ class PrecisionDepthCollector(
                             if (ci >= cb.limit()) continue
                             val conf = cb.get(ci).toInt() and 0xff
                             if (conf < confidenceThreshold) continue
+                            confidencePassedPixels++
 
                             val o = count * 2
                             tex[o] = (x + 0.5f) / depth.width.toFloat()
@@ -108,7 +136,11 @@ class PrecisionDepthCollector(
                 }
             }
         } catch (_: NotYetAvailableException) {
-        } catch (_: Throwable) {
+            notYetAvailableCount++
+            lastError = "NotYetAvailable"
+        } catch (t: Throwable) {
+            otherErrorCount++
+            lastError = t.javaClass.simpleName + ":" + (t.message ?: "")
         }
     }
 }
