@@ -118,7 +118,7 @@ once(
             return
         }
 
-        val surface = PrecisionSurfaceBuilder.build(precisionLogPoints, marks.first, marks.second)
+        val surface = PrecisionSurfaceBuilder.build(precisionLogPoints)
         precisionSurface = surface
         val report = PrecisionSlopeAnalyzer.analyze(surface, marks.first, marks.second)
         view3d.surface = surface
