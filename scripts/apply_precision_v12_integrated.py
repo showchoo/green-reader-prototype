@@ -37,7 +37,8 @@ once(
     '    private var consensusReport: SlopeReport? = null\n',
     '    private var consensusReport: SlopeReport? = null\n'
     '    private val precisionLogPoints = ArrayList<PrecisionDepthPoint>(90000)\n'
-    '    private var precisionSurface: PrecisionSurfaceModel? = null\n'\n    '    private var precisionLastDiagnostic: String = ""\n',
+    '    private var precisionSurface: PrecisionSurfaceModel? = null\n'
+    '    private var precisionLastDiagnostic: String = ""\n',
     'precision state')
 
 once(
