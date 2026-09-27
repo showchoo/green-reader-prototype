@@ -8,6 +8,7 @@ import android.widget.EditText
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
+import com.google.android.gms.common.api.ApiException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
@@ -80,16 +81,17 @@ class GmailAutoReporter(
 
     fun handleActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
         if (requestCode != REQUEST_CODE) return false
-        if (resultCode != Activity.RESULT_OK || data == null) {
+        if (data == null) {
             pendingSetupOnly = false
-            onStatus("Gmail認証がキャンセルされました")
+            onStatus("Gmail認証失敗 resultCode=" + resultCode + " / dataなし")
             return true
         }
         try {
             val result = authClient.getAuthorizationResultFromIntent(data)
             val token = result.accessToken
             if (token.isNullOrBlank()) {
-                onStatus("Gmailのアクセストークンを取得できませんでした")
+                pendingSetupOnly = false
+                onStatus("Gmail認証結果は返りましたがアクセストークンがありません / resultCode=" + resultCode)
             } else if (pendingSetupOnly) {
                 pendingSetupOnly = false
                 onStatus("Gmail自動送信を有効にしました")
@@ -97,9 +99,20 @@ class GmailAutoReporter(
             } else {
                 sendPending(token)
             }
+        } catch (e: ApiException) {
+            pendingSetupOnly = false
+            onStatus(
+                "Gmail認証失敗 code=" + e.statusCode +
+                    " / resultCode=" + resultCode +
+                    " / " + (e.message ?: "詳細なし")
+            )
         } catch (e: Throwable) {
             pendingSetupOnly = false
-            onStatus("Gmail認証エラー: " + (e.message ?: "不明"))
+            onStatus(
+                "Gmail認証エラー " + e.javaClass.simpleName +
+                    " / resultCode=" + resultCode +
+                    " / " + (e.message ?: "詳細なし")
+            )
         }
         return true
     }
@@ -138,7 +151,17 @@ class GmailAutoReporter(
             }
             .addOnFailureListener { e ->
                 pendingSetupOnly = false
-                onStatus("Gmail認証に失敗しました: " + (e.message ?: "不明"))
+                if (e is ApiException) {
+                    onStatus(
+                        "Gmail認証開始失敗 code=" + e.statusCode +
+                            " / " + (e.message ?: "詳細なし")
+                    )
+                } else {
+                    onStatus(
+                        "Gmail認証開始失敗 " + e.javaClass.simpleName +
+                            " / " + (e.message ?: "詳細なし")
+                    )
+                }
             }
     }
 
