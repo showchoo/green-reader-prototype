@@ -73,13 +73,23 @@ object PrecisionSurfaceBuilder {
         // Stage 1b: estimate the actual turf reference height from stable cells close
         // to the ball. A robust median makes a constant ARCore anchor/depth Y offset
         // harmless while still rejecting distant geometry.
-        val nearReferenceHeights = stable.mapNotNull { sc ->
-            val x = (sc.key.x + 0.5f) * voxelSizeMeters
-            val z = (sc.key.z + 0.5f) * voxelSizeMeters
-            val radius = hypot(x.toDouble(), z.toDouble()).toFloat()
-            if (radius <= 1.00f && abs(sc.med) <= 0.50f) sc.med else null
-        }.sorted()
-        val groundReference = median(nearReferenceHeights)
+        // Estimate the dominant horizontal surface from the full stable-cell
+        // height distribution. This avoids assuming that valid depth exists within
+        // 1 m of the ball anchor, which is not true on every ARCore device/view.
+        val heightBinSize = 0.05f
+        val heightBins = HashMap<Int, MutableList<Float>>()
+        for (sc in stable) {
+            if (!sc.med.isFinite()) continue
+            val bin = floor(sc.med / heightBinSize).toInt()
+            heightBins.getOrPut(bin) { ArrayList() }.add(sc.med)
+        }
+        val dominantBin = heightBins.maxByOrNull { it.value.size }?.key
+        val dominantHeights = if (dominantBin != null) {
+            stable.mapNotNull { sc ->
+                if (abs(sc.med - (dominantBin + 0.5f) * heightBinSize) <= 0.10f) sc.med else null
+            }.sorted()
+        } else emptyList()
+        val groundReference = median(dominantHeights)
 
         val initial = ArrayList<Candidate>()
         if (groundReference.isFinite()) {
@@ -110,7 +120,10 @@ object PrecisionSurfaceBuilder {
         }
 
         val refText = if (groundReference.isFinite()) String.format("%.3f", groundReference) else "nan"
-        val stage1Diagnostic = "buckets=${buckets.size} obsReject=$rejectObservations madReject=$rejectMad heightReject=$rejectHeight stable=${stable.size} ref=$refText refN=${nearReferenceHeights.size} stage1=${initial.size}"
+        val minRadius = stable.minOfOrNull { hypot(((it.key.x + 0.5f) * voxelSizeMeters).toDouble(), ((it.key.z + 0.5f) * voxelSizeMeters).toDouble()).toFloat() }
+        val maxRadius = stable.maxOfOrNull { hypot(((it.key.x + 0.5f) * voxelSizeMeters).toDouble(), ((it.key.z + 0.5f) * voxelSizeMeters).toDouble()).toFloat() }
+        val radiusText = if (minRadius != null && maxRadius != null) String.format("%.2f..%.2f", minRadius, maxRadius) else "nan"
+        val stage1Diagnostic = "buckets=${buckets.size} obsReject=$rejectObservations madReject=$rejectMad heightReject=$rejectHeight stable=${stable.size} ref=$refText refN=${dominantHeights.size} radius=$radiusText stage1=${initial.size}"
 
         if (initial.isEmpty()) {
             lastDiagnostic = "$stage1Diagnostic seed=0 connected=0 median=0"
@@ -130,11 +143,14 @@ object PrecisionSurfaceBuilder {
         // Stage 2: find seed ground close to the ball. This prevents a wall or table
         // elsewhere in the image becoming the dominant connected surface.
         val seedKeys = initial
-            .filter {
-                hypot(it.cell.x.toDouble(), it.cell.z.toDouble()) <= 0.90 &&
-                    abs(it.cell.height - groundReference) <= 0.14f
-            }
-            .sortedBy { abs(it.cell.height - groundReference) }
+            .filter { abs(it.cell.height - groundReference) <= 0.14f }
+            .sortedWith(
+                compareBy<Candidate> {
+                    hypot(it.cell.x.toDouble(), it.cell.z.toDouble())
+                }.thenBy {
+                    abs(it.cell.height - groundReference)
+                }
+            )
             .take(16)
             .map { it.key }
 
