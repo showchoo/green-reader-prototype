@@ -1,0 +1,1 @@
+Export fully patched v0.8.19 source for Precision v1.2.
