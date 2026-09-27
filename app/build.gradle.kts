@@ -37,6 +37,11 @@ android {
     }
 
     buildTypes {
+        getByName("debug") {
+            if (hasGreenReaderSigning) {
+                signingConfig = signingConfigs.getByName("greenReaderRelease")
+            }
+        }
         getByName("release") {
             if (hasGreenReaderSigning) {
                 signingConfig = signingConfigs.getByName("greenReaderRelease")
