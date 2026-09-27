@@ -56,7 +56,7 @@ new = '''        val precisionWindowSurface = if (precisionPoints.size >= 250) {
             precisionWindowSurface == null ->
                 "W${consensusWindowIndex + 1}: Surface生成失敗 points=${precisionPoints.size}"
             precisionWindowSurface.groundCellCount < 25 ->
-                "W${consensusWindowIndex + 1}: 地面抽出不足 points=${precisionWindowSurface.sourcePointCount} frames=${precisionWindowSurface.uniqueFrames} candidate=${precisionWindowSurface.candidateCellCount} ground=${precisionWindowSurface.groundCellCount} rejected=${precisionWindowSurface.rejectedCellCount}"
+                "W${consensusWindowIndex + 1}: 地面抽出不足 points=${precisionWindowSurface.sourcePointCount} frames=${precisionWindowSurface.uniqueFrames} candidate=${precisionWindowSurface.candidateCellCount} ground=${precisionWindowSurface.groundCellCount} rejected=${precisionWindowSurface.rejectedCellCount} surface=[" + PrecisionSurfaceBuilder.lastDiagnostic + "]"
             precisionCandidate == null ->
                 "W${consensusWindowIndex + 1}: 傾斜解析却下 points=${precisionWindowSurface.sourcePointCount} frames=${precisionWindowSurface.uniqueFrames} candidate=${precisionWindowSurface.candidateCellCount} ground=${precisionWindowSurface.groundCellCount} rejected=${precisionWindowSurface.rejectedCellCount} analyzer=[" + PrecisionSlopeAnalyzer.lastDiagnostic + "]"
             else ->
