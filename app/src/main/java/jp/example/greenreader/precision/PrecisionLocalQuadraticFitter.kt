@@ -3,6 +3,14 @@ package jp.example.greenreader.precision
 import kotlin.math.exp
 import kotlin.math.sqrt
 
+/**
+ * Robust local plane fit for putting-green slope.
+ *
+ * The previous 6-parameter quadratic fit could produce very large edge
+ * derivatives from modest depth curvature/noise while still reporting a low
+ * RMSE. For local slope we only need the first derivatives, so fit
+ * h = a*s + b*t + c directly with the same spatial/stability weighting.
+ */
 object PrecisionLocalQuadraticFitter {
     data class Fit(
         val dHdForward: Double,
@@ -23,36 +31,42 @@ object PrecisionLocalQuadraticFitter {
     ): Fit? {
         val rows = ArrayList<Pair<DoubleArray, Pair<Double, Double>>>()
         val r2 = radiusMeters * radiusMeters
+
         for (c in cells) {
             val dx = c.x - centerX
             val dz = c.z - centerZ
             if (dx * dx + dz * dz > r2) continue
-            val s = dx * forwardX + dz * forwardZ
-            val t = dx * rightX + dz * rightZ
-            val dist = sqrt((s * s + t * t).toDouble())
+
+            val forward = dx * forwardX + dz * forwardZ
+            val right = dx * rightX + dz * rightZ
+            val dist = sqrt((forward * forward + right * right).toDouble())
             val spatial = exp(-0.5 * (dist / (radiusMeters * 0.55)).let { it * it })
             val stability = 1.0 / (1.0 + c.madMeters * 120.0)
             val obs = c.observations.coerceAtMost(12) / 12.0
             val w = spatial * c.confidence * stability * (0.5 + 0.5 * obs)
-            val a = doubleArrayOf(
-                (s * s).toDouble(), (t * t).toDouble(), (s * t).toDouble(),
-                s.toDouble(), t.toDouble(), 1.0
-            )
-            rows += a to (c.height.toDouble() to w)
-        }
-        if (rows.size < 12) return null
 
-        val ata = Array(6) { DoubleArray(6) }
-        val aty = DoubleArray(6)
+            rows += doubleArrayOf(
+                forward.toDouble(),
+                right.toDouble(),
+                1.0
+            ) to (c.height.toDouble() to w)
+        }
+
+        if (rows.size < 8) return null
+
+        val ata = Array(3) { DoubleArray(3) }
+        val aty = DoubleArray(3)
         for ((a, yw) in rows) {
             val y = yw.first
             val w = yw.second
-            for (i in 0 until 6) {
+            for (i in 0 until 3) {
                 aty[i] += w * a[i] * y
-                for (j in 0 until 6) ata[i][j] += w * a[i] * a[j]
+                for (j in 0 until 3) ata[i][j] += w * a[i] * a[j]
             }
         }
-        for (i in 0 until 6) ata[i][i] += 1e-8
+
+        // Small ridge term keeps sparse/edge neighborhoods numerically stable.
+        for (i in 0 until 3) ata[i][i] += 1e-6
         val beta = solve(ata, aty) ?: return null
 
         var se = 0.0
@@ -60,13 +74,18 @@ object PrecisionLocalQuadraticFitter {
         for ((a, yw) in rows) {
             val y = yw.first
             val w = yw.second
-            var pred = 0.0
-            for (i in 0 until 6) pred += beta[i] * a[i]
+            val pred = beta[0] * a[0] + beta[1] * a[1] + beta[2]
             val e = y - pred
             se += w * e * e
             sw += w
         }
-        return Fit(beta[3], beta[4], sqrt(se / sw.coerceAtLeast(1e-9)), rows.size)
+
+        return Fit(
+            dHdForward = beta[0],
+            dHdRight = beta[1],
+            rmseMeters = sqrt(se / sw.coerceAtLeast(1e-9)),
+            samples = rows.size
+        )
     }
 
     private fun solve(aIn: Array<DoubleArray>, bIn: DoubleArray): DoubleArray? {
@@ -88,9 +107,9 @@ object PrecisionLocalQuadraticFitter {
             b[col] /= div
             for (r in 0 until n) {
                 if (r == col) continue
-                val f = a[r][col]
-                for (j in col until n) a[r][j] -= f * a[col][j]
-                b[r] -= f * b[col]
+                val factor = a[r][col]
+                for (j in col until n) a[r][j] -= factor * a[col][j]
+                b[r] -= factor * b[col]
             }
         }
         return b
