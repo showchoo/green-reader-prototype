@@ -12,7 +12,7 @@ import kotlin.math.max
  * The coordinate frame is gravity-aligned and ball-relative, so y ~= 0 is the
  * expected ground height at the ball.
  */
-object PrecisionSurfaceBuilder {
+object PrecisionSurfaceBuilder {\n    @Volatile var lastDiagnostic: String = ""\n        private set
     private data class Key(val x: Int, val z: Int)
     private data class Sample(val h: Float, val c: Float, val frame: Long)
     private data class Candidate(val key: Key, val cell: PrecisionSurfaceCell)
@@ -41,16 +41,16 @@ object PrecisionSurfaceBuilder {
         }
 
         // Stage 1: temporal stability + robust height estimate in each X/Z voxel.
-        val initial = ArrayList<Candidate>()
+        var rejectObservations = 0\n        var rejectMad = 0\n        var rejectHeight = 0\n        val initial = ArrayList<Candidate>()
         for ((key, values) in buckets) {
             val unique = values.mapTo(HashSet()) { it.frame }.size
-            if (unique < minObservations) continue
+            if (unique < minObservations) { rejectObservations++; continue }
 
             val heights = values.map { it.h }.sorted()
             val med = median(heights)
             val deviations = heights.map { abs(it - med) }.sorted()
             val mad = median(deviations)
-            if (!med.isFinite() || !mad.isFinite() || mad > maxMadMeters) continue
+            if (!med.isFinite() || !mad.isFinite() || mad > maxMadMeters) { rejectMad++; continue }
 
             val x = (key.x + 0.5f) * voxelSizeMeters
             val z = (key.z + 0.5f) * voxelSizeMeters
@@ -59,7 +59,7 @@ object PrecisionSurfaceBuilder {
             // Ball-relative ground must remain in a physically plausible height band.
             // Allows up to 8% true grade plus 7 cm of ARCore zero-height uncertainty.
             val allowedHeight = 0.07f + maxExpectedGrade * radius
-            if (abs(med) > allowedHeight) continue
+            if (abs(med) > allowedHeight) { rejectHeight++; continue }
 
             val meanConf = values.map { it.c }.average().toFloat()
             initial += Candidate(
@@ -75,7 +75,7 @@ object PrecisionSurfaceBuilder {
             )
         }
 
-        if (initial.isEmpty()) {
+        val stage1Diagnostic = "buckets=${buckets.size} obsReject=$rejectObservations madReject=$rejectMad heightReject=$rejectHeight stage1=${initial.size}"\n\n        if (initial.isEmpty()) {\n            lastDiagnostic = "$stage1Diagnostic seed=0 connected=0 median=0"
             return PrecisionSurfaceModel(
                 cells = emptyList(),
                 voxelSizeMeters = voxelSizeMeters,
@@ -102,7 +102,7 @@ object PrecisionSurfaceBuilder {
 
         // If no ground can be established near the ball, fail closed. Falling back
         // to arbitrary distant geometry is exactly what produced the huge false slopes.
-        if (seedKeys.isEmpty()) {
+        if (seedKeys.isEmpty()) {\n            lastDiagnostic = "$stage1Diagnostic seed=0 connected=0 median=0"
             return PrecisionSurfaceModel(
                 cells = emptyList(),
                 voxelSizeMeters = voxelSizeMeters,
