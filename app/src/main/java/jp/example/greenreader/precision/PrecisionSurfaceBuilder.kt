@@ -4,6 +4,8 @@ import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.sqrt
+import jp.example.greenreader.analysis.Vec3
 
 /**
  * Builds a surface from repeated Raw Depth samples while aggressively rejecting
@@ -50,6 +52,8 @@ object PrecisionSurfaceBuilder {
 
     fun build(
         points: List<PrecisionDepthPoint>,
+        ball: Vec3? = null,
+        cup: Vec3? = null,
         voxelSizeMeters: Float = 0.05f,
         minObservations: Int = tuningMinObservations,
         maxMadMeters: Float = tuningMaxMadMeters,
@@ -61,7 +65,29 @@ object PrecisionSurfaceBuilder {
 
         val buckets = HashMap<Key, MutableList<Sample>>()
         val frames = HashSet<Long>()
+
+        // Only the turf around the intended putt line is relevant. Without this
+        // gate, a large distant surface can outvote the nearby green when choosing
+        // the dominant stable height band.
+        val corridor = if (ball != null && cup != null) {
+            val dx = cup.x - ball.x
+            val dz = cup.z - ball.z
+            val d = sqrt(dx * dx + dz * dz)
+            if (d >= 0.20f) floatArrayOf(ball.x, ball.z, dx / d, dz / d, d) else null
+        } else null
+        var corridorRejected = 0
+
         for (p in points) {
+            if (corridor != null) {
+                val relX = p.x - corridor[0]
+                val relZ = p.z - corridor[1]
+                val along = relX * corridor[2] + relZ * corridor[3]
+                val cross = kotlin.math.abs(-relX * corridor[3] + relZ * corridor[2])
+                if (along < -0.75f || along > corridor[4] + 0.75f || cross > 0.90f) {
+                    corridorRejected++
+                    continue
+                }
+            }
             val key = Key(
                 floor(p.x / voxelSizeMeters).toInt(),
                 floor(p.z / voxelSizeMeters).toInt()
@@ -151,7 +177,7 @@ object PrecisionSurfaceBuilder {
         val minRadius = stable.minOfOrNull { hypot(((it.key.x + 0.5f) * voxelSizeMeters).toDouble(), ((it.key.z + 0.5f) * voxelSizeMeters).toDouble()).toFloat() }
         val maxRadius = stable.maxOfOrNull { hypot(((it.key.x + 0.5f) * voxelSizeMeters).toDouble(), ((it.key.z + 0.5f) * voxelSizeMeters).toDouble()).toFloat() }
         val radiusText = if (minRadius != null && maxRadius != null) String.format("%.2f..%.2f", minRadius, maxRadius) else "nan"
-        val stage1Diagnostic = "buckets=${buckets.size} obsReject=$rejectObservations madReject=$rejectMad heightReject=$rejectHeight stable=${stable.size} ref=$refText refN=${dominantHeights.size} radius=$radiusText stage1=${initial.size}"
+        val stage1Diagnostic = "buckets=${buckets.size} corridorReject=$corridorRejected obsReject=$rejectObservations madReject=$rejectMad heightReject=$rejectHeight stable=${stable.size} ref=$refText refN=${dominantHeights.size} radius=$radiusText stage1=${initial.size}"
 
         if (initial.isEmpty()) {
             lastDiagnostic = "$stage1Diagnostic seed=0 connected=0 median=0"
