@@ -1,4 +1,4 @@
-name: Build Green Reader Precision v2.1
+name: Build Green Reader Precision v2.2
 
 on:
   pull_request:
@@ -46,7 +46,7 @@ jobs:
           python3 scripts/apply_v0818_known_good_geometry.py
           python3 scripts/apply_v0819_ball_center_depth_fallback.py
 
-      - name: Apply Precision v2.1
+      - name: Apply Precision v2.2
         run: |
           python3 scripts/apply_precision_v12_integrated.py
           python3 scripts/fix_precision_v12_3d_feed.py
@@ -58,6 +58,7 @@ jobs:
           python3 scripts/apply_precision_v19_gmail_auto_report.py
           python3 scripts/apply_precision_v20_oauth_signing.py
           python3 scripts/apply_precision_v21_remove_gmail.py
+          python3 scripts/apply_precision_v22_failure_dialog.py
 
       - name: Prepare fixed signing key
         shell: bash
@@ -86,11 +87,11 @@ jobs:
           APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)"
           test -n "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
-          cp "$APK" GreenReaderPrecision-v2.1-debug.apk
+          cp "$APK" GreenReaderPrecision-v2.2-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrecision-v2.1-debug
-          path: GreenReaderPrecision-v2.1-debug.apk
+          name: GreenReaderPrecision-v2.2-debug
+          path: GreenReaderPrecision-v2.2-debug.apk
           if-no-files-found: error
           retention-days: 90
