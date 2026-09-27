@@ -58,7 +58,7 @@ new = '''        val precisionWindowSurface = if (precisionPoints.size >= 250) {
             precisionWindowSurface.groundCellCount < 25 ->
                 "W${consensusWindowIndex + 1}: 地面抽出不足 points=${precisionWindowSurface.sourcePointCount} frames=${precisionWindowSurface.uniqueFrames} candidate=${precisionWindowSurface.candidateCellCount} ground=${precisionWindowSurface.groundCellCount} rejected=${precisionWindowSurface.rejectedCellCount}"
             precisionCandidate == null ->
-                "W${consensusWindowIndex + 1}: 傾斜解析却下 points=${precisionWindowSurface.sourcePointCount} frames=${precisionWindowSurface.uniqueFrames} candidate=${precisionWindowSurface.candidateCellCount} ground=${precisionWindowSurface.groundCellCount} rejected=${precisionWindowSurface.rejectedCellCount}"
+                "W${consensusWindowIndex + 1}: 傾斜解析却下 points=${precisionWindowSurface.sourcePointCount} frames=${precisionWindowSurface.uniqueFrames} candidate=${precisionWindowSurface.candidateCellCount} ground=${precisionWindowSurface.groundCellCount} rejected=${precisionWindowSurface.rejectedCellCount} analyzer=[" + PrecisionSlopeAnalyzer.lastDiagnostic + "]"
             else ->
                 "W${consensusWindowIndex + 1}: OK points=${precisionWindowSurface.sourcePointCount} frames=${precisionWindowSurface.uniqueFrames} ground=${precisionWindowSurface.groundCellCount} long=" + String.format("%.2f", precisionCandidate.overallLongitudinalPercent) + " cross=" + String.format("%.2f", precisionCandidate.overallCrossPercent)
         }
