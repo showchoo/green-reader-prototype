@@ -52,7 +52,7 @@ new = '''        val precisionWindowSurface = if (precisionPoints.size >= 250) {
 
         val windowDiagnostic = when {
             precisionPoints.size < 250 ->
-                "W${consensusWindowIndex + 1}: RawDepth点不足 points=${precisionPoints.size} frames=${precisionCollector.uniqueFrames()}"
+                "W${consensusWindowIndex + 1}: RawDepth点不足 " + precisionCollector.diagnosticSummary()
             precisionWindowSurface == null ->
                 "W${consensusWindowIndex + 1}: Surface生成失敗 points=${precisionPoints.size}"
             precisionWindowSurface.groundCellCount < 25 ->
@@ -75,13 +75,13 @@ s = s.replace(
     1
 )
 
-s = s.replace('appVersion = "Precision 2.2"', 'appVersion = "Precision 2.3"')
+s = s.replace('appVersion = "Precision 2.2"', 'appVersion = "Precision 2.4"')
 main.write_text(s, encoding="utf-8")
 
 build = Path("app/build.gradle.kts")
 b = build.read_text(encoding="utf-8")
-b = b.replace('versionCode = 220', 'versionCode = 230')
-b = b.replace('versionName = "2.2"', 'versionName = "2.3"')
+b = b.replace('versionCode = 220', 'versionCode = 240')
+b = b.replace('versionName = "2.2"', 'versionName = "2.4"')
 build.write_text(b, encoding="utf-8")
 
 print("Applied Precision v2.3 detailed window diagnostics")
