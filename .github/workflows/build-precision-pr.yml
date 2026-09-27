@@ -1,4 +1,4 @@
-name: Build Green Reader Precision v1.9
+name: Build Green Reader Precision v2.0
 
 on:
   pull_request:
@@ -46,7 +46,7 @@ jobs:
           python3 scripts/apply_v0818_known_good_geometry.py
           python3 scripts/apply_v0819_ball_center_depth_fallback.py
 
-      - name: Apply Precision v1.9
+      - name: Apply Precision v2.0
         run: |
           python3 scripts/apply_precision_v12_integrated.py
           python3 scripts/fix_precision_v12_3d_feed.py
@@ -56,16 +56,36 @@ jobs:
           python3 scripts/apply_precision_v17_relaxed_diagnostics.py
           python3 scripts/apply_precision_v18_persistent_diagnostics.py
           python3 scripts/apply_precision_v19_gmail_auto_report.py
+          python3 scripts/apply_precision_v20_oauth_signing.py
+
+      - name: Prepare fixed signing key
+        if: ${{ secrets.GREEN_READER_KEYSTORE_B64 != '' }}
+        shell: bash
+        env:
+          GREEN_READER_KEYSTORE_B64: ${{ secrets.GREEN_READER_KEYSTORE_B64 }}
+          GREEN_READER_STORE_PASSWORD_SECRET: ${{ secrets.GREEN_READER_STORE_PASSWORD }}
+          GREEN_READER_KEY_ALIAS_SECRET: ${{ secrets.GREEN_READER_KEY_ALIAS }}
+          GREEN_READER_KEY_PASSWORD_SECRET: ${{ secrets.GREEN_READER_KEY_PASSWORD }}
+        run: |
+          echo "$GREEN_READER_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/greenreader-release.jks"
+          echo "GREEN_READER_KEYSTORE_PATH=$RUNNER_TEMP/greenreader-release.jks" >> "$GITHUB_ENV"
+          echo "GREEN_READER_STORE_PASSWORD=$GREEN_READER_STORE_PASSWORD_SECRET" >> "$GITHUB_ENV"
+          echo "GREEN_READER_KEY_ALIAS=$GREEN_READER_KEY_ALIAS_SECRET" >> "$GITHUB_ENV"
+          echo "GREEN_READER_KEY_PASSWORD=$GREEN_READER_KEY_PASSWORD_SECRET" >> "$GITHUB_ENV"
 
       - name: Run tests and build APK
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleRelease
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrecision-v1.9.apk
+        shell: bash
+        run: |
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          cp "$APK" GreenReaderPrecision-v2.0.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrecision-v1.9
-          path: GreenReaderPrecision-v1.9.apk
+          name: GreenReaderPrecision-v2.0
+          path: GreenReaderPrecision-v2.0.apk
           if-no-files-found: error
           retention-days: 90
