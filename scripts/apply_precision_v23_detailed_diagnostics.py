@@ -75,13 +75,13 @@ s = s.replace(
     1
 )
 
-s = s.replace('appVersion = "Precision 2.2"', 'appVersion = "Precision 5.0"')
+s = s.replace('appVersion = "Precision 2.2"', 'appVersion = "Precision 5.1"')
 main.write_text(s, encoding="utf-8")
 
 build = Path("app/build.gradle.kts")
 b = build.read_text(encoding="utf-8")
-b = b.replace('versionCode = 220', 'versionCode = 500')
-b = b.replace('versionName = "2.2"', 'versionName = "5.0"')
+b = b.replace('versionCode = 220', 'versionCode = 510')
+b = b.replace('versionName = "2.2"', 'versionName = "5.1"')
 build.write_text(b, encoding="utf-8")
 
 print("Applied Precision v2.3 detailed window diagnostics")
