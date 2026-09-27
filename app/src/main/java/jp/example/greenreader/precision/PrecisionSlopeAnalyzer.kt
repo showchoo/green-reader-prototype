@@ -9,7 +9,7 @@ import kotlin.math.sqrt
 object PrecisionSlopeAnalyzer {
     private const val MAX_USABLE_SLOPE_PERCENT = 12f
     private const val MAX_LOCAL_RMSE_METERS = 0.040
-    private const val LOCAL_FIT_RADIUS_METERS = 0.45f
+    private const val LOCAL_FIT_RADIUS_METERS = 0.32f
 
     @Volatile var lastDiagnostic: String = ""
         private set
