@@ -162,17 +162,17 @@ once(
     '        }\n',
     'feed 3d')
 
-s = s.replace('appVersion = "0.8.19"', 'appVersion = "Precision 1.2"')
+s = s.replace('appVersion = "0.8.19"', 'appVersion = "Precision 1.3"')
 p.write_text(s, encoding='utf-8')
 
 build = Path('app/build.gradle.kts')
 b = build.read_text(encoding='utf-8')
 b = b.replace('applicationId = "jp.example.greenreader"', 'applicationId = "jp.showchoo.greenreader.precision"')
-b = b.replace('versionCode = 39', 'versionCode = 120')
-b = b.replace('versionName = "0.8.19"', 'versionName = "1.2"')
+b = b.replace('versionCode = 39', 'versionCode = 130')
+b = b.replace('versionName = "0.8.19"', 'versionName = "1.3"')
 build.write_text(b, encoding='utf-8')
 
 manifest = Path('app/src/main/AndroidManifest.xml')
 m = manifest.read_text(encoding='utf-8').replace('android:label="Green Reader"', 'android:label="Green Reader Precision"')
 manifest.write_text(m, encoding='utf-8')
-print('Applied Precision v1.2 additive integration')
+print('Applied Precision v1.3 additive integration')
