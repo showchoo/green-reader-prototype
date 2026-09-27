@@ -1,4 +1,4 @@
-name: Export fully patched Green Reader source
+name: Build Green Reader Precision v1.2
 
 on:
   pull_request:
@@ -6,12 +6,26 @@ on:
   workflow_dispatch:
 
 jobs:
-  export:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
-      - name: Apply all proven v0.8.19 patches
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Apply all proven v0.8.19 improvements
         shell: bash
         run: |
           python3 scripts/apply_power_saving.py
@@ -32,11 +46,18 @@ jobs:
           python3 scripts/apply_v0818_known_good_geometry.py
           python3 scripts/apply_v0819_ball_center_depth_fallback.py
 
-      - name: Pack patched source
-        run: zip -qr GreenReader-v0.8.19-patched-source.zip app scripts build.gradle.kts settings.gradle.kts gradle.properties
+      - name: Apply Precision v1.2
+        run: python3 scripts/apply_precision_v12_integrated.py
+
+      - name: Run tests and build APK
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrecision-v1.2.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: GreenReader-v0.8.19-patched-source
-          path: GreenReader-v0.8.19-patched-source.zip
+          name: GreenReaderPrecision-v1.2
+          path: GreenReaderPrecision-v1.2.apk
           if-no-files-found: error
+          retention-days: 90
