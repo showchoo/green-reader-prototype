@@ -24,6 +24,7 @@ class PrecisionDepthCollector(
     private var fullAcquiredFrames = 0
     private var fullNonZeroPixels = 0L
     private var fallbackFrames = 0
+    private var transformedValidPoints = 0L
     private var notYetAvailableCount = 0
     private var otherErrorCount = 0
     private var lastError = ""
@@ -39,6 +40,7 @@ class PrecisionDepthCollector(
         fullAcquiredFrames = 0
         fullNonZeroPixels = 0
         fallbackFrames = 0
+        transformedValidPoints = 0
         notYetAvailableCount = 0
         otherErrorCount = 0
         lastError = ""
@@ -56,6 +58,7 @@ class PrecisionDepthCollector(
         " fullFrames=" + fullAcquiredFrames +
         " fullNonZero=" + fullNonZeroPixels +
         " fallbackFrames=" + fallbackFrames +
+        " transformedValid=" + transformedValidPoints +
         " acceptedFrames=" + frameTimestamps.size +
         " points=" + samples.size +
         " notYet=" + notYetAvailableCount +
@@ -195,22 +198,25 @@ class PrecisionDepthCollector(
 
         if (count == 0) return false
 
-        val image = FloatArray(count * 2)
+        val imageNorm = FloatArray(count * 2)
         frame.transformCoordinates2d(
             Coordinates2d.TEXTURE_NORMALIZED,
             tex.copyOf(count * 2),
-            Coordinates2d.IMAGE_PIXELS,
-            image
+            Coordinates2d.IMAGE_NORMALIZED,
+            imageNorm
         )
 
         val levelFrame = GravityAlignedFrame.fromPose(referencePose)
         var added = 0
         for (i in 0 until count) {
-            val u = image[i * 2]
-            val v = image[i * 2 + 1]
-            if (!u.isFinite() || !v.isFinite()) continue
-            if (u < 0f || v < 0f || u >= dims[0] || v >= dims[1]) continue
+            val nu = imageNorm[i * 2]
+            val nv = imageNorm[i * 2 + 1]
+            if (!nu.isFinite() || !nv.isFinite()) continue
+            if (nu < 0f || nv < 0f || nu > 1f || nv > 1f) continue
+            transformedValidPoints++
 
+            val u = nu * dims[0]
+            val v = nv * dims[1]
             val z = zs[i]
             val xCam = (u - principal[0]) / focal[0] * z
             val yCam = -(v - principal[1]) / focal[1] * z
