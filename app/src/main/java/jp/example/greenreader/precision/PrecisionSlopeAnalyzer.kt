@@ -8,7 +8,7 @@ import kotlin.math.sqrt
 
 object PrecisionSlopeAnalyzer {
     private const val MAX_USABLE_SLOPE_PERCENT = 12f
-    private const val MAX_LOCAL_RMSE_METERS = 0.025
+    private const val MAX_LOCAL_RMSE_METERS = 0.040
 
     fun analyze(
         surface: PrecisionSurfaceModel,
@@ -21,7 +21,7 @@ object PrecisionSlopeAnalyzer {
         val distance = sqrt(dx * dx + dz * dz)
 
         // Fail closed when the reconstructed ground is too sparse.
-        if (distance < 0.4f || surface.groundCellCount < 45 || surface.uniqueFrames < 4) return null
+        if (distance < 0.4f || surface.groundCellCount < 25 || surface.uniqueFrames < 3) return null
 
         val fx = dx / distance
         val fz = dz / distance
@@ -61,7 +61,7 @@ object PrecisionSlopeAnalyzer {
         }
 
         // Require broad coverage along the putt line, not one or two lucky patches.
-        if (segments.size < 6) return null
+        if (segments.size < 4) return null
 
         fun median(values: List<Float>): Float {
             val s = values.sorted()
