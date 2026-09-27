@@ -3,6 +3,16 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val greenReaderKeystorePath = System.getenv("GREEN_READER_KEYSTORE_PATH")
+val greenReaderStorePassword = System.getenv("GREEN_READER_STORE_PASSWORD")
+val greenReaderKeyAlias = System.getenv("GREEN_READER_KEY_ALIAS")
+val greenReaderKeyPassword = System.getenv("GREEN_READER_KEY_PASSWORD")
+val hasGreenReaderSigning =
+    !greenReaderKeystorePath.isNullOrBlank() &&
+    !greenReaderStorePassword.isNullOrBlank() &&
+    !greenReaderKeyAlias.isNullOrBlank() &&
+    !greenReaderKeyPassword.isNullOrBlank()
+
 android {
     namespace = "jp.example.greenreader"
     compileSdk = 35
@@ -13,6 +23,26 @@ android {
         targetSdk = 35
         versionCode = 39
         versionName = "0.8.19"
+    }
+
+    signingConfigs {
+        if (hasGreenReaderSigning) {
+            create("greenReaderRelease") {
+                storeFile = file(greenReaderKeystorePath!!)
+                storePassword = greenReaderStorePassword
+                keyAlias = greenReaderKeyAlias
+                keyPassword = greenReaderKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            if (hasGreenReaderSigning) {
+                signingConfig = signingConfigs.getByName("greenReaderRelease")
+            }
+            isMinifyEnabled = false
+        }
     }
 
     compileOptions {
