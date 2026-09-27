@@ -15,6 +15,34 @@ import kotlin.math.max
 object PrecisionSurfaceBuilder {
     @Volatile var lastDiagnostic: String = ""
         private set
+
+    @Volatile var tuningMinObservations: Int = 2
+    @Volatile var tuningMaxMadMeters: Float = 0.040f
+    @Volatile var tuningBaseHeightBandMeters: Float = 0.10f
+    @Volatile var tuningMaxExpectedGrade: Float = 0.08f
+    @Volatile var tuningNeighborReach: Int = 3
+    @Volatile var tuningStepBaseMeters: Float = 0.045f
+    @Volatile var tuningMedianToleranceMeters: Float = 0.050f
+    @Volatile var tuningLocalMinNeighbors: Int = 2
+
+    fun resetTuning() {
+        tuningMinObservations = 2
+        tuningMaxMadMeters = 0.040f
+        tuningBaseHeightBandMeters = 0.10f
+        tuningMaxExpectedGrade = 0.08f
+        tuningNeighborReach = 3
+        tuningStepBaseMeters = 0.045f
+        tuningMedianToleranceMeters = 0.050f
+        tuningLocalMinNeighbors = 2
+    }
+
+    fun tuningSummary(): String =
+        "obs=$tuningMinObservations mad=" + String.format("%.3f", tuningMaxMadMeters) +
+        " band=" + String.format("%.2f", tuningBaseHeightBandMeters) +
+        " grade=" + String.format("%.2f", tuningMaxExpectedGrade) +
+        " reach=$tuningNeighborReach step=" + String.format("%.3f", tuningStepBaseMeters) +
+        " med=" + String.format("%.3f", tuningMedianToleranceMeters) +
+        " nbr=$tuningLocalMinNeighbors"
     private data class Key(val x: Int, val z: Int)
     private data class Sample(val h: Float, val c: Float, val frame: Long)
     private data class Candidate(val key: Key, val cell: PrecisionSurfaceCell)
@@ -23,9 +51,9 @@ object PrecisionSurfaceBuilder {
     fun build(
         points: List<PrecisionDepthPoint>,
         voxelSizeMeters: Float = 0.05f,
-        minObservations: Int = 2,
-        maxMadMeters: Float = 0.040f,
-        maxExpectedGrade: Float = 0.08f
+        minObservations: Int = tuningMinObservations,
+        maxMadMeters: Float = tuningMaxMadMeters,
+        maxExpectedGrade: Float = tuningMaxExpectedGrade
     ): PrecisionSurfaceModel {
         if (points.isEmpty()) {
             return PrecisionSurfaceModel(emptyList(), voxelSizeMeters, 0, 0)
@@ -100,7 +128,7 @@ object PrecisionSurfaceBuilder {
 
                 // Accept realistic grade around the observed turf reference rather
                 // than around an assumed exact anchor Y=0.
-                val allowedHeight = 0.10f + maxExpectedGrade * radius
+                val allowedHeight = tuningBaseHeightBandMeters + maxExpectedGrade * radius
                 if (abs(sc.med - groundReference) > allowedHeight) { rejectHeight++; continue }
 
                 initial += Candidate(
@@ -181,8 +209,8 @@ object PrecisionSurfaceBuilder {
             val currentKey = queue.removeFirst()
             val current = map[currentKey]?.cell ?: continue
 
-            for (dx in -3..3) {
-                for (dz in -3..3) {
+            for (dx in -tuningNeighborReach..tuningNeighborReach) {
+                for (dz in -tuningNeighborReach..tuningNeighborReach) {
                     if (dx == 0 && dz == 0) continue
                     val nextKey = Key(currentKey.x + dx, currentKey.z + dz)
                     if (accepted.contains(nextKey)) continue
@@ -196,7 +224,7 @@ object PrecisionSurfaceBuilder {
                     // Real putting surfaces change height gradually. 2 cm baseline
                     // tolerance plus 12% over the gap still allows steep greens but
                     // rejects vertical walls/furniture edges.
-                    val allowedStep = 0.045f + 0.15f * horizontal
+                    val allowedStep = tuningStepBaseMeters + 0.15f * horizontal
                     if (abs(next.height - current.height) <= allowedStep) {
                         accepted += nextKey
                         queue.addLast(nextKey)
@@ -220,9 +248,9 @@ object PrecisionSurfaceBuilder {
                     acceptedMap[Key(kx + dx, kz + dz)]?.let { neighborHeights += it.height }
                 }
             }
-            if (neighborHeights.size < 2) return@filter false
+            if (neighborHeights.size < tuningLocalMinNeighbors) return@filter false
             val localMedian = median(neighborHeights.sorted())
-            abs(cell.height - localMedian) <= 0.050f
+            abs(cell.height - localMedian) <= tuningMedianToleranceMeters
         }
 
         val medianCount = ground.size
@@ -232,7 +260,7 @@ object PrecisionSurfaceBuilder {
             usedConnectedFallback = true
         }
 
-        lastDiagnostic = "$stage1Diagnostic seed=${seedKeys.size} connected=${connectedGround.size} median=$medianCount fallback=${if (usedConnectedFallback) 1 else 0} final=${ground.size}"
+        lastDiagnostic = "$stage1Diagnostic seed=${seedKeys.size} connected=${connectedGround.size} median=$medianCount fallback=${if (usedConnectedFallback) 1 else 0} final=${ground.size} tune=[" + tuningSummary() + "]"
 
         return PrecisionSurfaceModel(
             cells = ground,
