@@ -70,5 +70,45 @@ final_tracking_dialog='''            if (updateStatus) showPrecisionFailureDialo
 if final_tracking in s:
     s=s.replace(final_tracking, final_tracking_dialog)
 
+
+
+# Successful scans already have W1-W5 + AGG in precisionLastDiagnostic, but the
+# existing UI only opens the copy dialog on failures. Show the same copyable data
+# after a successful five-window scan as well.
+success_old='''        runOnUiThread {
+            status.text = "複数回の測定結果を照合しました。高精度解析中…"
+        }'''
+success_new='''        runOnUiThread {
+            status.text = "複数回の測定結果を照合しました。高精度解析中…"
+            val detail = if (precisionLastDiagnostic.isBlank()) "診断情報なし" else precisionLastDiagnostic
+            val full = "測定データ\\n\\n" + detail
+            val body = TextView(this).apply {
+                text = full
+                setTextIsSelectable(true)
+                textSize = 15f
+                setPadding(40, 24, 40, 24)
+            }
+            val scroll = android.widget.ScrollView(this).apply {
+                isFillViewport = true
+                addView(body)
+            }
+            val dialog = android.app.AlertDialog.Builder(this)
+                .setTitle("測定データ")
+                .setView(scroll)
+                .setPositiveButton("コピー", null)
+                .setNegativeButton("閉じる", null)
+                .create()
+            dialog.setOnShowListener {
+                dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                    copyPrecisionDiagnostic(full)
+                }
+            }
+            dialog.show()
+        }'''
+if success_old in s:
+    s=s.replace(success_old, success_new, 1)
+else:
+    raise SystemExit("v5.1 success copy target missing")
+
 p.write_text(s,encoding="utf-8")
 print("Applied Precision v4.6 reliable diagnostic copy dialog")
