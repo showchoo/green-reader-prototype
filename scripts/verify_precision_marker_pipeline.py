@@ -94,8 +94,11 @@ def verify():
     assert 'button("診断コピー") { copyLastPrecisionDiagnostic() }' in s
     assert 'recordPrecisionScanFailure("測定結果が揃いませんでした。もう一度スキャンしてください")' in s
     assert 'recordPrecisionScanFailure("測定結果が安定しませんでした。もう一度スキャンしてください")' in s
-    assert 'showPrecisionFailureDialog("カップ位置を取得できませんでした。もう一度カップをタップしてください")' in s
-    assert 'showPrecisionFailureDialog("ボール位置を取得できませんでした。もう一度タップしてください")' in s
+    assert '.setTitle(if (accepted)' not in s
+    assert '.setTitle("測定データ")' not in s
+    finish_tap = function("finishPrecisionTap")
+    assert "last_marker" in finish_tap
+    assert "dialog.show()" not in finish_tap
 
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
     assert 'versionName = "6.2"' in gradle and 'versionCode = 620' in gradle
