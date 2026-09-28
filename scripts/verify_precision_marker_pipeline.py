@@ -127,9 +127,16 @@ def verify():
     assert "postInvalidateOnAnimation()" in overlay_ui
     assert "DEPTH SCAN // ACTIVE" in live_ui
 
+    assert "val arInitializing = trackingStateText != TrackingState.TRACKING.name" in s
+    assert "if (arInitializing || precisionActive) 33L else 250L" in s
+    assert 'status.text = "AR準備完了。ボール位置から設定してください"' in s
+    live_ui = Path("app/src/main/java/jp/example/greenreader/ui/NeonScanOverlayView.kt").read_text(encoding="utf-8")
+    assert "LAYER_TYPE_SOFTWARE" not in live_ui
+    assert "setShadowLayer" not in live_ui
+
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "6.5"' in gradle and 'versionCode = 650' in gradle
-    assert 'appVersion = "Precision 6.5"' in s
+    assert 'versionName = "6.6"' in gradle and 'versionCode = 660' in gradle
+    assert 'appVersion = "Precision 6.6"' in s
 
 
 verify()
@@ -146,4 +153,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v6.5 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
+print("Final Precision v6.6 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
