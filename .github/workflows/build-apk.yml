@@ -1,11 +1,13 @@
-name: Build Android APK
+name: Build Green Reader Precision v7
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "main", "master" ]
+    branches:
+      - "chatgpt-v70-session-quality"
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - "precision-v21-no-gmail-build"
 
 permissions:
   contents: read
@@ -13,7 +15,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout source
@@ -41,67 +43,19 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Apply power-saving patch
-        run: python3 scripts/apply_power_saving.py
+      - name: Generate Precision v7.0 source
+        run: python3 scripts/build_precision_v70.py
 
-      - name: Apply Japanese scan UI
-        run: python3 scripts/apply_v070_ui.py
-
-      - name: Apply clean result UI
-        run: python3 scripts/apply_v072_clean_result.py
-
-      - name: Remove green-speed control
-        run: python3 scripts/apply_v073_no_stimp.py
-
-      - name: Enable automatic grain logging
-        run: python3 scripts/apply_v074_auto_grain.py
-
-      - name: Enable complete automatic scan logging
-        run: python3 scripts/apply_v075_full_auto_log.py
-
-      - name: Fix screen-space downhill direction
-        run: python3 scripts/apply_v078_screen_cross.py
-
-      - name: Lift controls above navigation bar
-        run: python3 scripts/apply_v079_bottom_inset.py
-
-      - name: Prefer depth for ball and cup marks
-        run: python3 scripts/apply_v080_depth_first_marks.py
-
-      - name: Keep multi-frame depth in ball Anchor coordinates
-        run: python3 scripts/apply_v081_anchor_local_frame.py
-
-      - name: Use automatic Ball-to-Cup tap sequence
-        run: python3 scripts/apply_v082_auto_mark_sequence.py
-
-      - name: Add saved-data folder link
-        run: python3 scripts/apply_v083_open_saved_data.py
-
-      - name: Open saved-data manager
-        run: python3 scripts/apply_v084_data_manager.py
-
-      - name: Keep displayed cross axis in the same Anchor frame
-        run: python3 scripts/apply_v087_anchor_cross_projection.py
-
-      - name: Use five-window consensus scanning
-        run: python3 scripts/apply_v0812_consensus_scan.py
-
-      - name: Restore known-good geometry and single-shot taps
-        run: python3 scripts/apply_v0818_known_good_geometry.py
-
-      - name: Improve Ball acquisition without changing geometry
-        run: python3 scripts/apply_v0819_ball_center_depth_fallback.py
-
-      - name: Build debug APK
+      - name: Run unit tests and build APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrototype-v0.8.19-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrecision-v7.0-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrototype-v0.8.19-debug-apk
-          path: GreenReaderPrototype-v0.8.19-debug.apk
+          name: GreenReaderPrecision-v7.0-debug-apk
+          path: GreenReaderPrecision-v7.0-debug.apk
           if-no-files-found: error
           retention-days: 30
