@@ -2,7 +2,6 @@ package jp.example.greenreader.field
 
 import android.content.ContentValues
 import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Environment
@@ -204,9 +203,6 @@ object ScanFieldRecorder {
         identity: RecordIdentity,
         meta: CaptureMeta
     ): String {
-        val hasCameraDepth = context?.packageManager?.hasSystemFeature(
-            PackageManager.FEATURE_CAMERA_DEPTH
-        )
         return """{
   "schema_version": 3,
   "session_id": "${escape(identity.sessionId)}",
@@ -219,8 +215,7 @@ object ScanFieldRecorder {
   "model": "${escape(Build.MODEL)}",
   "device": "${escape(Build.DEVICE)}",
   "sdk_int": ${Build.VERSION.SDK_INT},
-  "arcore_depth_supported": ${meta.arCoreDepthSupported},
-  "android_camera_depth_feature": ${hasCameraDepth ?: false}
+  "arcore_depth_supported": ${meta.arCoreDepthSupported}
 }
 """
     }
