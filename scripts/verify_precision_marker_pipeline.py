@@ -59,6 +59,9 @@ def verify():
         assert "val intr = frame.camera.textureIntrinsics" not in body
 
     # Raw Depth fallback follows Google's native raw-depth reconstruction path.
+    assert "PrecisionDepthRangePolicy.maxDepthM(" in s
+    assert "maxDepthM = precisionScanMaxDepthM" in s
+
     raw = function("rawDepthPointNearTap")
     assert "acquireRawDepthImage16Bits" in raw
     assert "acquireRawDepthConfidenceImage" in raw
@@ -77,8 +80,8 @@ def verify():
     assert 'PrecisionMarkerCandidateGate.evaluate(' in function("tracedMarkCandidate")
 
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "5.8"' in gradle and 'versionCode = 580' in gradle
-    assert 'appVersion = "Precision 5.8"' in s
+    assert 'versionName = "5.9"' in gradle and 'versionCode = 590' in gradle
+    assert 'appVersion = "Precision 5.9"' in s
 
 
 verify()
@@ -95,4 +98,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v5.8 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
+print("Final Precision v5.9 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
