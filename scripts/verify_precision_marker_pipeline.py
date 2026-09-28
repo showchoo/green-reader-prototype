@@ -133,9 +133,16 @@ def verify():
     assert "LAYER_TYPE_SOFTWARE" not in live_ui
     assert "setShadowLayer" not in live_ui
 
+    assert "GREEN READER  //  PRECISION" not in s
+    assert "AR SLOPE ENGINE  //  FIELD MODE" not in s
+    assert 'text = "MENU ︿"' in s
+    assert "fun setControlsExpanded(expanded: Boolean)" in s
+    assert "expandedMenu.visibility = View.GONE" in s
+    assert 'scanButton = button("▶  SCAN")' in s
+
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "6.6"' in gradle and 'versionCode = 660' in gradle
-    assert 'appVersion = "Precision 6.6"' in s
+    assert 'versionName = "6.7"' in gradle and 'versionCode = 670' in gradle
+    assert 'appVersion = "Precision 6.7"' in s
 
 
 verify()
@@ -152,4 +159,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v6.6 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
+print("Final Precision v6.7 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
