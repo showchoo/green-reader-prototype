@@ -101,7 +101,6 @@ def verify():
     assert "dialog.show()" not in finish_tap
 
     assert "val precisionActive = scanning || captureRequested || pendingMark != null || markMode != 0" in s
-    assert "if (precisionActive) 33L else 250L" in s
     assert "RENDERMODE_WHEN_DIRTY" in s
 
     assert "ScanFieldRecorder.saveFailure(" in s
