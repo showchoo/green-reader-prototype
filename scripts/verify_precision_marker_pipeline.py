@@ -146,9 +146,15 @@ def verify():
     assert "max(96, report.segments.size * 24)" in roll_ui
     assert "raw[i] - endDrift * t" in roll_ui
 
+    assert "precisionCollector.size() >= 250 && precisionCollector.uniqueFrames() >= 3" in s
+    assert "precisionWindowElapsedMs < 1200L" in s
+    assert "val precisionMinWindows = 5" in s
+    assert "val precisionMaxWindows = 8" in s
+    assert '"追加測定中… "' in s
+
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "6.8"' in gradle and 'versionCode = 680' in gradle
-    assert 'appVersion = "Precision 6.8"' in s
+    assert 'versionName = "6.9"' in gradle and 'versionCode = 690' in gradle
+    assert 'appVersion = "Precision 6.9"' in s
 
 
 verify()
@@ -165,4 +171,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v6.8 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
+print("Final Precision v6.9 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
