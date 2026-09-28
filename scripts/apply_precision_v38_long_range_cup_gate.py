@@ -16,3 +16,4 @@ g = g.replace('versionName = "5.7"', 'versionName = "5.8"', 1)
 g = g.replace('versionCode = 570', 'versionCode = 580', 1)
 gpath.write_text(g, encoding="utf-8")
 print("Applied Precision v5.8 long-range cup pair-gate version")
+# Trigger Precision v5.8 build
