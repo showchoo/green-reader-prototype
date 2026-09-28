@@ -53,19 +53,9 @@ once(
 )
 
 # Persist failed scans automatically. No user interaction is needed.
-old_failure='''    private fun recordPrecisionScanFailure(message: String) {
-        val detail = if (precisionLastDiagnostic.isBlank()) "診断情報なし" else precisionLastDiagnostic
-        val full = message + "\n\n" + detail
-        getSharedPreferences("precision_diagnostics", MODE_PRIVATE)
-            .edit()
-            .putString("last_failure", full)
-            .putLong("last_failure_time", System.currentTimeMillis())
-            .apply()
-        status.text = message + "（診断保存済み）"
-        Toast.makeText(this, "再スキャンできます", Toast.LENGTH_SHORT).show()
-    }
-'''
-new_failure='''    private fun recordPrecisionScanFailure(message: String) {
+failure_start = s.index("    private fun recordPrecisionScanFailure(message: String) {")
+failure_end = s.index("\n    private fun ", failure_start + 20)
+new_failure = r'''    private fun recordPrecisionScanFailure(message: String) {
         val detail = if (precisionLastDiagnostic.isBlank()) "診断情報なし" else precisionLastDiagnostic
         val full = message + "\n\n" + detail
         val prefs = getSharedPreferences("precision_diagnostics", MODE_PRIVATE)
@@ -118,7 +108,7 @@ new_failure='''    private fun recordPrecisionScanFailure(message: String) {
         Toast.makeText(this, "再スキャンできます", Toast.LENGTH_SHORT).show()
     }
 '''
-once(old_failure,new_failure,"automatic failure package")
+s = s[:failure_start] + new_failure + s[failure_end:]
 
 # Successful scans keep the legacy package and add the full Precision dataset.
 old_success='''                    ScanFieldRecorder.save(
