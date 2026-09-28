@@ -14,9 +14,11 @@ import jp.example.greenreader.analysis.GrainReport
 import jp.example.greenreader.analysis.PuttAdvisor
 import jp.example.greenreader.analysis.SlopeReport
 import kotlin.math.abs
+import kotlin.math.acos
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -105,37 +107,42 @@ class GreenMapView(context: Context) : View(context) {
         val startY = bottom - 30f
         val endX = (left + right) / 2f
         val endY = top + 30f
-        val path = Path().apply {
-            moveTo(startX, startY)
-            if (adv != null) {
-                val halfWidthM = 0.65f
-                val pxPerM = (corridorW / 2f) / halfWidthM
-                val offsetPx = (adv.aimOffsetCm / 100f * pxPerM).coerceIn(-corridorW * 0.35f, corridorW * 0.35f)
-                cubicTo(
-                    startX + offsetPx * 0.42f, startY - corridorH * 0.25f,
-                    endX + offsetPx * 0.55f, top + corridorH * 0.35f,
-                    endX, endY
-                )
-            } else {
-                lineTo(endX, endY)
-            }
-        }
+        val halfWidthM = 0.65f
+        val pxPerM = (corridorW / 2f) / halfWidthM
+        val offsetPx = ((adv?.aimOffsetCm ?: 0f) / 100f * pxPerM)
+            .coerceIn(-corridorW * 0.35f, corridorW * 0.35f)
+
+        val path = PrecisionRollPath.build(
+            startX = startX,
+            startY = startY,
+            endX = endX,
+            endY = endY,
+            crossX = 1f,
+            crossY = 0f,
+            report = r,
+            aimOffsetPx = offsetPx
+        )
 
         glow.style = Paint.Style.STROKE
-        glow.strokeWidth = 14f
+        glow.strokeWidth = 11f
         glow.strokeCap = Paint.Cap.ROUND
-        glow.color = Color.argb(150, 0, 255, 190)
-        glow.maskFilter = BlurMaskFilter(18f, BlurMaskFilter.Blur.NORMAL)
+        glow.strokeJoin = Paint.Join.ROUND
+        glow.color = Color.argb(95, 0, 255, 190)
+        glow.maskFilter = BlurMaskFilter(13f, BlurMaskFilter.Blur.NORMAL)
         canvas.drawPath(path, glow)
         glow.maskFilter = null
 
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 5f
         paint.strokeCap = Paint.Cap.ROUND
-        paint.color = Color.rgb(190, 255, 236)
+        paint.strokeJoin = Paint.Join.ROUND
+        paint.strokeWidth = 5f
+        paint.color = Color.argb(115, 80, 255, 213)
+        canvas.drawPath(path, paint)
+        paint.strokeWidth = 2.3f
+        paint.color = Color.rgb(224, 255, 247)
         canvas.drawPath(path, paint)
 
-        drawFlowChevrons(canvas, path)
+        drawAdaptiveFlowChevrons(canvas, path)
 
         paint.style = Paint.Style.FILL
         paint.color = Color.rgb(220, 255, 246)
@@ -268,32 +275,59 @@ class GreenMapView(context: Context) : View(context) {
         paint.clearShadowLayer()
     }
 
-    private fun drawFlowChevrons(canvas: Canvas, path: Path) {
+    private fun drawAdaptiveFlowChevrons(canvas: Canvas, path: Path) {
         val measure = android.graphics.PathMeasure(path, false)
         val length = measure.length
         if (length <= 1f) return
-        val phase = (SystemClock.uptimeMillis() % 1500L) / 1500f
+
+        val phase = (SystemClock.uptimeMillis() % 1350L) / 1350f
+        var d = phase * 26f
         val pos = FloatArray(2)
         val tan = FloatArray(2)
-        for (i in 0 until 7) {
-            val d = ((i / 7f + phase) % 1f) * length
-            if (!measure.getPosTan(d, pos, tan)) continue
+        val tanA = FloatArray(2)
+        val tanB = FloatArray(2)
+
+        while (d < length) {
+            if (!measure.getPosTan(d, pos, tan)) {
+                d += 26f
+                continue
+            }
+            val sample = min(10f, max(4f, length * 0.012f))
+            measure.getPosTan((d - sample).coerceAtLeast(0f), null, tanA)
+            measure.getPosTan((d + sample).coerceAtMost(length), null, tanB)
+
+            fun normalized(v: FloatArray): Pair<Float, Float> {
+                val m = sqrt(v[0] * v[0] + v[1] * v[1]).coerceAtLeast(0.001f)
+                return Pair(v[0] / m, v[1] / m)
+            }
+            val (ax, ay) = normalized(tanA)
+            val (bx, by) = normalized(tanB)
+            val turn = (acos((ax * bx + ay * by).coerceIn(-1f, 1f)) / 0.55f)
+                .coerceIn(0f, 1f)
+
             val mag = sqrt(tan[0] * tan[0] + tan[1] * tan[1]).coerceAtLeast(0.001f)
             val ux = tan[0] / mag
             val uy = tan[1] / mag
             val nx = -uy
             val ny = ux
-            val s = 13f
-            val backX = pos[0] - ux * s
-            val backY = pos[1] - uy * s
+
+            val arrowLength = 10.5f - turn * 4.2f
+            val halfWidth = 6.8f - turn * 3.0f
+            val spacing = 36f - turn * 16f
+            val backX = pos[0] - ux * arrowLength
+            val backY = pos[1] - uy * arrowLength
+
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 4f
+            paint.strokeWidth = 2.7f - turn * 0.9f
             paint.strokeCap = Paint.Cap.ROUND
-            paint.color = Color.argb(235, 203, 255, 241)
-            paint.setShadowLayer(12f, 0f, 0f, Color.rgb(0, 255, 190))
-            canvas.drawLine(backX + nx * s * 0.7f, backY + ny * s * 0.7f, pos[0], pos[1], paint)
-            canvas.drawLine(backX - nx * s * 0.7f, backY - ny * s * 0.7f, pos[0], pos[1], paint)
+            paint.color = Color.argb(235, 215, 255, 244)
+            paint.setShadowLayer(7f - turn * 2f, 0f, 0f, Color.rgb(0, 255, 190))
+            canvas.drawLine(backX + nx * halfWidth, backY + ny * halfWidth, pos[0], pos[1], paint)
+            canvas.drawLine(backX - nx * halfWidth, backY - ny * halfWidth, pos[0], pos[1], paint)
             paint.clearShadowLayer()
+
+            d += spacing
         }
     }
+
 }
