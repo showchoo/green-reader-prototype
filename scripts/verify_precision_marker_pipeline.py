@@ -104,9 +104,20 @@ def verify():
     assert "if (precisionActive) 33L else 250L" in s
     assert "RENDERMODE_WHEN_DIRTY" in s
 
+    assert "ScanFieldRecorder.saveFailure(" in s
+    assert "precisionPoints = precisionLogPoints.toList()" in s
+    assert "precisionDiagnostic = precisionLastDiagnostic" in s
+    recorder = Path("app/src/main/java/jp/example/greenreader/field/ScanFieldRecorder.kt").read_text(encoding="utf-8")
+    assert "precision_depth_points.csv" in recorder
+    assert "precision_diagnostics.txt" in recorder
+    assert "marker_diagnostics.txt" in recorder
+    assert "collector_diagnostics.txt" in recorder
+    assert "frame_timestamp_ns" in recorder
+    assert "fun saveFailure(" in recorder
+
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "6.3"' in gradle and 'versionCode = 630' in gradle
-    assert 'appVersion = "Precision 6.3"' in s
+    assert 'versionName = "6.4"' in gradle and 'versionCode = 640' in gradle
+    assert 'appVersion = "Precision 6.4"' in s
 
 
 verify()
@@ -123,4 +134,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v6.3 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
+print("Final Precision v6.4 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
