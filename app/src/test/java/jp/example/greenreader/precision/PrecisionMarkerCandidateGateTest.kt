@@ -52,3 +52,25 @@ class PrecisionMarkerCandidateGateTest {
         assertEquals(a.vertical!!, b.vertical!!, 0.00001f)
     }
 }
+
+
+    @Test fun longRangeCupUsesBallRelativeGeometryInsteadOfBallCameraLimit() {
+        val camera = Vec3(0.056355413f, 0.004358414f, 0.0077345436f)
+        val ball = Vec3(-0.012305353f, -1.2264777f, -2.6813304f)
+        val cup = Vec3(0.050335106f, -1.0163503f, -5.6413f)
+        val result = PrecisionMarkerCandidateGate.evaluate(camera, cup, ball)
+        assertTrue(result.accepted)
+        assertTrue(result.cameraDistance > 4f)
+        assertEquals(2.96f, result.horizontal!!, 0.02f)
+        assertEquals(0.210f, result.vertical!!, 0.01f)
+        assertEquals(0.395f, result.limit!!, 0.01f)
+    }
+
+    @Test fun distantCupStillRejectsImplausibleHeight() {
+        val camera = Vec3(0f, 0f, 0f)
+        val ball = Vec3(0f, -1f, -3f)
+        val badCup = Vec3(0f, 0.5f, -6f)
+        val result = PrecisionMarkerCandidateGate.evaluate(camera, badCup, ball)
+        assertEquals("vertical-mismatch", result.reason)
+        assertFalse(result.accepted)
+    }
