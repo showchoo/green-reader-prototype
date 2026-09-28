@@ -17,7 +17,10 @@ import android.view.View
 import jp.example.greenreader.analysis.PuttAdvisor
 import jp.example.greenreader.analysis.SlopeReport
 import kotlin.math.abs
+import kotlin.math.acos
 import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sqrt
 
 /**
@@ -43,16 +46,16 @@ class CameraOverlayResultView(context: Context) : View(context) {
         style = Paint.Style.FILL
     }
     private val rollGlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(170, 0, 255, 190)
-        strokeWidth = 20f
+        color = Color.argb(105, 0, 255, 190)
+        strokeWidth = 12f
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
-        maskFilter = BlurMaskFilter(18f, BlurMaskFilter.Blur.NORMAL)
+        maskFilter = BlurMaskFilter(13f, BlurMaskFilter.Blur.NORMAL)
     }
     private val rollPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(215, 255, 245)
-        strokeWidth = 6f
+        color = Color.rgb(225, 255, 248)
+        strokeWidth = 2.8f
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
@@ -165,21 +168,27 @@ class CameraOverlayResultView(context: Context) : View(context) {
 
         canvas.drawLine(b.x, b.y, aim.x, aim.y, aimPaint)
 
-        val control1 = PointF(
-            b.x + (aim.x - b.x) * 0.45f,
-            b.y + (aim.y - b.y) * 0.45f
+        val rollPath = PrecisionRollPath.build(
+            startX = b.x,
+            startY = b.y,
+            endX = c.x,
+            endY = c.y,
+            crossX = nx,
+            crossY = ny,
+            report = r,
+            aimOffsetPx = aimPx
         )
-        val control2 = PointF(
-            c.x + nx * aimPx * 0.55f,
-            c.y + ny * aimPx * 0.55f
-        )
-        val rollPath = Path().apply {
-            moveTo(b.x, b.y)
-            cubicTo(control1.x, control1.y, control2.x, control2.y, c.x, c.y)
-        }
         canvas.drawPath(rollPath, rollGlow)
+
+        // Fine dual-core line: a translucent mid layer and a crisp sub-3 px core.
+        rollPaint.strokeWidth = 5.2f
+        rollPaint.color = Color.argb(120, 90, 255, 216)
         canvas.drawPath(rollPath, rollPaint)
-        drawAnimatedChevrons(canvas, rollPath)
+        rollPaint.strokeWidth = 2.4f
+        rollPaint.color = Color.rgb(232, 255, 249)
+        canvas.drawPath(rollPath, rollPaint)
+
+        drawAdaptiveChevrons(canvas, rollPath)
 
         drawMarker(canvas, b, Color.rgb(225, 255, 248), 17f)
         drawMarker(canvas, c, Color.rgb(70, 255, 190), 22f)
@@ -253,31 +262,65 @@ class CameraOverlayResultView(context: Context) : View(context) {
         }
     }
 
-    private fun drawAnimatedChevrons(canvas: Canvas, path: Path) {
+    private fun drawAdaptiveChevrons(canvas: Canvas, path: Path) {
         val measure = PathMeasure(path, false)
         val length = measure.length
         if (length <= 1f) return
-        val phase = (SystemClock.uptimeMillis() % 1500L) / 1500f
+
+        // Move by a fraction of one local spacing rather than shifting the whole
+        // distribution, so arrows flow continuously without bunching.
+        val phase = (SystemClock.uptimeMillis() % 1300L) / 1300f
+        var d = phase * 28f
         val pos = FloatArray(2)
         val tan = FloatArray(2)
-        for (i in 0 until 8) {
-            val d = ((i / 8f + phase) % 1f) * length
-            if (!measure.getPosTan(d, pos, tan)) continue
+        val tanA = FloatArray(2)
+        val tanB = FloatArray(2)
+
+        while (d < length) {
+            if (!measure.getPosTan(d, pos, tan)) {
+                d += 28f
+                continue
+            }
+
+            val sample = min(10f, max(4f, length * 0.012f))
+            measure.getPosTan((d - sample).coerceAtLeast(0f), null, tanA)
+            measure.getPosTan((d + sample).coerceAtMost(length), null, tanB)
+
+            fun normalize(v: FloatArray): Pair<Float, Float> {
+                val m = sqrt(v[0] * v[0] + v[1] * v[1]).coerceAtLeast(0.001f)
+                return Pair(v[0] / m, v[1] / m)
+            }
+
+            val (ax, ay) = normalize(tanA)
+            val (bx, by) = normalize(tanB)
+            val dot = (ax * bx + ay * by).coerceIn(-1f, 1f)
+            val turn = (acos(dot) / 0.55f).coerceIn(0f, 1f)
+
             val mag = sqrt(tan[0] * tan[0] + tan[1] * tan[1]).coerceAtLeast(0.001f)
             val ux = tan[0] / mag
             val uy = tan[1] / mag
             val nx = -uy
             val ny = ux
-            val s = 12f
-            val backX = pos[0] - ux * s
-            val backY = pos[1] - uy * s
-            hudPaint.strokeWidth = 4.5f
+
+            // Tight curvature => smaller, thinner and denser arrows.
+            val arrowLength = 11f - turn * 4.5f
+            val halfWidth = 7f - turn * 3.2f
+            val stroke = 2.8f - turn * 0.9f
+            val spacing = 38f - turn * 17f
+
+            val backX = pos[0] - ux * arrowLength
+            val backY = pos[1] - uy * arrowLength
+
+            hudPaint.style = Paint.Style.STROKE
+            hudPaint.strokeWidth = stroke
             hudPaint.strokeCap = Paint.Cap.ROUND
-            hudPaint.color = Color.argb(245, 225, 255, 248)
-            hudPaint.setShadowLayer(14f, 0f, 0f, Color.rgb(0, 255, 190))
-            canvas.drawLine(backX + nx * 8f, backY + ny * 8f, pos[0], pos[1], hudPaint)
-            canvas.drawLine(backX - nx * 8f, backY - ny * 8f, pos[0], pos[1], hudPaint)
+            hudPaint.color = Color.argb(238, 225, 255, 248)
+            hudPaint.setShadowLayer(7f - turn * 2f, 0f, 0f, Color.rgb(0, 255, 190))
+            canvas.drawLine(backX + nx * halfWidth, backY + ny * halfWidth, pos[0], pos[1], hudPaint)
+            canvas.drawLine(backX - nx * halfWidth, backY - ny * halfWidth, pos[0], pos[1], hudPaint)
             hudPaint.clearShadowLayer()
+
+            d += spacing
         }
     }
 
