@@ -85,39 +85,26 @@ marker_fn=r'''    private fun finishPrecisionTap(mode: Int, accepted: Boolean) {
 '''
 s=s[:start]+marker_fn+s[end:]
 
-# Successful five-window scans should continue directly into result generation;
-# diagnostics stay available manually instead of opening a modal copy screen.
-success_start='''        runOnUiThread {
+# Successful five-window scans should continue directly into result generation.
+# Locate the diagnostic block structurally so formatting changes cannot break this patch.
+success_anchor = '''        runOnUiThread {
             status.text = "複数回の測定結果を照合しました。高精度解析中…"
-            val detail = if (precisionLastDiagnostic.isBlank()) "診断情報なし" else precisionLastDiagnostic
-            val full = "測定データ\n\n" + detail
-            val body = TextView(this).apply {
-                text = full
-                setTextIsSelectable(true)
-                textSize = 15f
-                setPadding(40, 24, 40, 24)
-            }
-            val scroll = android.widget.ScrollView(this).apply {
-                isFillViewport = true
-                addView(body)
-            }
-            val dialog = android.app.AlertDialog.Builder(this)
-                .setTitle("測定データ")
-                .setView(scroll)
-                .setPositiveButton("コピー", null)
-                .setNegativeButton("閉じる", null)
-                .create()
-            dialog.setOnShowListener {
-                dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                    copyPrecisionDiagnostic(full)
-                }
-            }
-            dialog.show()
+'''
+success_start = s.find(success_anchor)
+if success_start < 0:
+    raise SystemExit("v6.2 success UI anchor missing")
+dialog_title = s.find('.setTitle("測定データ")', success_start)
+if dialog_title < 0:
+    raise SystemExit("v6.2 measurement diagnostic dialog missing")
+dialog_end_marker = '''            dialog.show()
         }'''
-success_new='''        runOnUiThread {
+dialog_end = s.find(dialog_end_marker, dialog_title)
+if dialog_end < 0:
+    raise SystemExit("v6.2 measurement diagnostic dialog end missing")
+dialog_end += len(dialog_end_marker)
+s = s[:success_start] + '''        runOnUiThread {
             status.text = "複数回の測定結果を照合しました。高精度解析中…"
-        }'''
-once(success_start,success_new,"successful scan diagnostic dialog")
+        }''' + s[dialog_end:]
 
 if s.count('appVersion = "Precision 6.1"') != 1:
     raise SystemExit("v6.2 app version target missing")
