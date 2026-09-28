@@ -100,9 +100,13 @@ def verify():
     assert "last_marker" in finish_tap
     assert "dialog.show()" not in finish_tap
 
+    assert "val precisionActive = scanning || captureRequested || pendingMark != null || markMode != 0" in s
+    assert "if (precisionActive) 33L else 250L" in s
+    assert "RENDERMODE_WHEN_DIRTY" in s
+
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "6.2"' in gradle and 'versionCode = 620' in gradle
-    assert 'appVersion = "Precision 6.2"' in s
+    assert 'versionName = "6.3"' in gradle and 'versionCode = 630' in gradle
+    assert 'appVersion = "Precision 6.3"' in s
 
 
 verify()
@@ -119,4 +123,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v6.2 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
+print("Final Precision v6.3 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
