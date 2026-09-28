@@ -115,9 +115,21 @@ def verify():
     assert "frame_timestamp_ns" in recorder
     assert "fun saveFailure(" in recorder
 
+    assert "NeonScanOverlayView" in s
+    assert "AR SLOPE ENGINE  //  FIELD MODE" in s
+    assert "if (::liveHud.isInitialized && liveHud.scanning != scanning)" in s
+    green_ui = Path("app/src/main/java/jp/example/greenreader/ui/GreenMapView.kt").read_text(encoding="utf-8")
+    overlay_ui = Path("app/src/main/java/jp/example/greenreader/ui/CameraOverlayResultView.kt").read_text(encoding="utf-8")
+    live_ui = Path("app/src/main/java/jp/example/greenreader/ui/NeonScanOverlayView.kt").read_text(encoding="utf-8")
+    assert "drawFlowChevrons" in green_ui
+    assert "postInvalidateOnAnimation()" in green_ui
+    assert "drawAnimatedChevrons" in overlay_ui
+    assert "postInvalidateOnAnimation()" in overlay_ui
+    assert "DEPTH SCAN // ACTIVE" in live_ui
+
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "6.4"' in gradle and 'versionCode = 640' in gradle
-    assert 'appVersion = "Precision 6.4"' in s
+    assert 'versionName = "6.5"' in gradle and 'versionCode = 650' in gradle
+    assert 'appVersion = "Precision 6.5"' in s
 
 
 verify()
@@ -134,4 +146,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v6.4 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
+print("Final Precision v6.5 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
