@@ -139,9 +139,18 @@ def verify():
     assert "expandedMenu.visibility = View.GONE" in s
     assert 'scanButton = button("▶  SCAN")' in s
 
+    camera_ui = Path("app/src/main/java/jp/example/greenreader/ui/CameraOverlayResultView.kt").read_text(encoding="utf-8")
+    map_ui = Path("app/src/main/java/jp/example/greenreader/ui/GreenMapView.kt").read_text(encoding="utf-8")
+    roll_ui = Path("app/src/main/java/jp/example/greenreader/ui/PrecisionRollPath.kt").read_text(encoding="utf-8")
+    assert "PrecisionRollPath.build(" in camera_ui
+    assert "drawAdaptiveChevrons" in camera_ui
+    assert "drawAdaptiveFlowChevrons" in map_ui
+    assert "max(96, report.segments.size * 24)" in roll_ui
+    assert "raw[i] - endDrift * t" in roll_ui
+
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "6.7"' in gradle and 'versionCode = 670' in gradle
-    assert 'appVersion = "Precision 6.7"' in s
+    assert 'versionName = "6.8"' in gradle and 'versionCode = 680' in gradle
+    assert 'appVersion = "Precision 6.8"' in s
 
 
 verify()
@@ -158,4 +167,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v6.7 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
+print("Final Precision v6.8 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
