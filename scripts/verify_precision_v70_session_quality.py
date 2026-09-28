@@ -28,7 +28,7 @@ assert '"schema_version": 3' in recorder
 assert "record_identity.json" in recorder
 assert "scan_quality.json" in recorder
 assert "Build.MANUFACTURER" in recorder
-assert "PackageManager.FEATURE_CAMERA_DEPTH" in recorder
+assert "\"arcore_depth_supported\"" in recorder
 
 assert "lastRawDepthTimestamp" in collector
 assert "lastFullDepthTimestamp" in collector
