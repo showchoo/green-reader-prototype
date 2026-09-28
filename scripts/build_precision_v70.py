@@ -6,6 +6,26 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 
 PATCHES = [
+    # Rebuild the known-good v0.8.19 field base from the checked-in prototype.
+    "scripts/apply_power_saving.py",
+    "scripts/apply_v070_ui.py",
+    "scripts/apply_v072_clean_result.py",
+    "scripts/apply_v073_no_stimp.py",
+    "scripts/apply_v074_auto_grain.py",
+    "scripts/apply_v075_full_auto_log.py",
+    "scripts/apply_v078_screen_cross.py",
+    "scripts/apply_v079_bottom_inset.py",
+    "scripts/apply_v080_depth_first_marks.py",
+    "scripts/apply_v081_anchor_local_frame.py",
+    "scripts/apply_v082_auto_mark_sequence.py",
+    "scripts/apply_v083_open_saved_data.py",
+    "scripts/apply_v084_data_manager.py",
+    "scripts/apply_v087_anchor_cross_projection.py",
+    "scripts/apply_v0812_consensus_scan.py",
+    "scripts/apply_v0818_known_good_geometry.py",
+    "scripts/apply_v0819_ball_center_depth_fallback.py",
+
+    # Layer the Precision pipeline on top of that exact field base.
     "scripts/apply_precision_v12_integrated.py",
     "scripts/fix_precision_v12_3d_feed.py",
     "scripts/apply_precision_v14_gravity_frame.py",
