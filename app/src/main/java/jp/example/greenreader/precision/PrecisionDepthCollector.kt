@@ -15,7 +15,11 @@ class PrecisionDepthCollector(
 ) {
     private val samples = ArrayList<PrecisionDepthPoint>(70000)
     private val frameTimestamps = LinkedHashSet<Long>()
-    private var lastDepthTimestamp = Long.MIN_VALUE
+    // Raw Depth and Full Depth can legitimately share one AR frame timestamp.
+    // Deduplicate each source independently so Full Depth supplementation is
+    // not accidentally discarded after a successful Raw Depth acquisition.
+    private var lastRawDepthTimestamp = Long.MIN_VALUE
+    private var lastFullDepthTimestamp = Long.MIN_VALUE
 
     private var attemptedFrames = 0
     private var rawAcquiredFrames = 0
@@ -33,11 +37,16 @@ class PrecisionDepthCollector(
     private var lastRequestedMaxDepthM = 5f
     private var fullSupplementFrames = 0
     private var lastFullSupplementMinDepthM = Float.NaN
+    private var rawAcceptedFrames = 0
+    private var fullAcceptedFrames = 0
+    private var duplicateRawFrames = 0
+    private var duplicateFullFrames = 0
 
     @Synchronized fun clear() {
         samples.clear()
         frameTimestamps.clear()
-        lastDepthTimestamp = Long.MIN_VALUE
+        lastRawDepthTimestamp = Long.MIN_VALUE
+        lastFullDepthTimestamp = Long.MIN_VALUE
         attemptedFrames = 0
         rawAcquiredFrames = 0
         rawNonZeroPixels = 0
@@ -54,11 +63,83 @@ class PrecisionDepthCollector(
         lastRequestedMaxDepthM = 5f
         fullSupplementFrames = 0
         lastFullSupplementMinDepthM = Float.NaN
+        rawAcceptedFrames = 0
+        fullAcceptedFrames = 0
+        duplicateRawFrames = 0
+        duplicateFullFrames = 0
+    }
+
+    data class DiagnosticsSnapshot(
+        val attemptedFrames: Int = 0,
+        val rawAcquiredFrames: Int = 0,
+        val rawNonZeroPixels: Long = 0,
+        val confidencePassedPixels: Long = 0,
+        val fullAcquiredFrames: Int = 0,
+        val fullNonZeroPixels: Long = 0,
+        val rawInRangePixels: Long = 0,
+        val fullInRangePixels: Long = 0,
+        val fallbackFrames: Int = 0,
+        val transformedValidPoints: Long = 0,
+        val acceptedUniqueFrames: Int = 0,
+        val pointCount: Int = 0,
+        val rawAcceptedFrames: Int = 0,
+        val fullAcceptedFrames: Int = 0,
+        val duplicateRawFrames: Int = 0,
+        val duplicateFullFrames: Int = 0,
+        val notYetAvailableCount: Int = 0,
+        val otherErrorCount: Int = 0
+    ) {
+        companion object {
+            fun aggregate(items: List<DiagnosticsSnapshot>): DiagnosticsSnapshot {
+                if (items.isEmpty()) return DiagnosticsSnapshot()
+                return DiagnosticsSnapshot(
+                    attemptedFrames = items.sumOf { it.attemptedFrames },
+                    rawAcquiredFrames = items.sumOf { it.rawAcquiredFrames },
+                    rawNonZeroPixels = items.sumOf { it.rawNonZeroPixels },
+                    confidencePassedPixels = items.sumOf { it.confidencePassedPixels },
+                    fullAcquiredFrames = items.sumOf { it.fullAcquiredFrames },
+                    fullNonZeroPixels = items.sumOf { it.fullNonZeroPixels },
+                    rawInRangePixels = items.sumOf { it.rawInRangePixels },
+                    fullInRangePixels = items.sumOf { it.fullInRangePixels },
+                    fallbackFrames = items.sumOf { it.fallbackFrames },
+                    transformedValidPoints = items.sumOf { it.transformedValidPoints },
+                    acceptedUniqueFrames = items.sumOf { it.acceptedUniqueFrames },
+                    pointCount = items.sumOf { it.pointCount },
+                    rawAcceptedFrames = items.sumOf { it.rawAcceptedFrames },
+                    fullAcceptedFrames = items.sumOf { it.fullAcceptedFrames },
+                    duplicateRawFrames = items.sumOf { it.duplicateRawFrames },
+                    duplicateFullFrames = items.sumOf { it.duplicateFullFrames },
+                    notYetAvailableCount = items.sumOf { it.notYetAvailableCount },
+                    otherErrorCount = items.sumOf { it.otherErrorCount }
+                )
+            }
+        }
     }
 
     @Synchronized fun size(): Int = samples.size
     @Synchronized fun uniqueFrames(): Int = frameTimestamps.size
     @Synchronized fun snapshot(): List<PrecisionDepthPoint> = samples.toList()
+
+    @Synchronized fun diagnosticSnapshot(): DiagnosticsSnapshot = DiagnosticsSnapshot(
+        attemptedFrames = attemptedFrames,
+        rawAcquiredFrames = rawAcquiredFrames,
+        rawNonZeroPixels = rawNonZeroPixels,
+        confidencePassedPixels = confidencePassedPixels,
+        fullAcquiredFrames = fullAcquiredFrames,
+        fullNonZeroPixels = fullNonZeroPixels,
+        rawInRangePixels = rawInRangePixels,
+        fullInRangePixels = fullInRangePixels,
+        fallbackFrames = fallbackFrames,
+        transformedValidPoints = transformedValidPoints,
+        acceptedUniqueFrames = frameTimestamps.size,
+        pointCount = samples.size,
+        rawAcceptedFrames = rawAcceptedFrames,
+        fullAcceptedFrames = fullAcceptedFrames,
+        duplicateRawFrames = duplicateRawFrames,
+        duplicateFullFrames = duplicateFullFrames,
+        notYetAvailableCount = notYetAvailableCount,
+        otherErrorCount = otherErrorCount
+    )
 
     @Synchronized fun diagnosticSummary(): String =
         "attempts=" + attemptedFrames +
@@ -72,6 +153,10 @@ class PrecisionDepthCollector(
         " fallbackFrames=" + fallbackFrames +
         " transformedValid=" + transformedValidPoints +
         " acceptedFrames=" + frameTimestamps.size +
+        " rawAcceptedFrames=" + rawAcceptedFrames +
+        " fullAcceptedFrames=" + fullAcceptedFrames +
+        " duplicateRaw=" + duplicateRawFrames +
+        " duplicateFull=" + duplicateFullFrames +
         " points=" + samples.size +
         " notYet=" + notYetAvailableCount +
         " errors=" + otherErrorCount +
@@ -172,7 +257,22 @@ class PrecisionDepthCollector(
         isRaw: Boolean
     ): Boolean {
         val timestamp = depth.timestamp
-        if (timestamp == lastDepthTimestamp) return false
+        if (isRaw) {
+            if (timestamp == lastRawDepthTimestamp) {
+                duplicateRawFrames++
+                return false
+            }
+            // Mark this native depth image consumed even if it contains no
+            // accepted point; processing the identical image again cannot add
+            // information and only inflates CPU work.
+            lastRawDepthTimestamp = timestamp
+        } else {
+            if (timestamp == lastFullDepthTimestamp) {
+                duplicateFullFrames++
+                return false
+            }
+            lastFullDepthTimestamp = timestamp
+        }
 
         val camera = frame.camera
         val dp = depth.planes[0]
@@ -293,8 +393,8 @@ class PrecisionDepthCollector(
         }
 
         if (added > 0) {
-            lastDepthTimestamp = timestamp
             frameTimestamps += timestamp
+            if (isRaw) rawAcceptedFrames++ else fullAcceptedFrames++
             if (samples.size > 90000) samples.subList(0, samples.size - 70000).clear()
             return true
         }
