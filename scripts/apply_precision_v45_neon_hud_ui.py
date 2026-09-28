@@ -1,6 +1,12 @@
 """v6.5: futuristic neon HUD UI, animated result arrows, no measurement logic changes."""
 from pathlib import Path
 
+# Apply the visual templates only after all legacy UI patchers have finished.
+ui_dir = Path("app/src/main/java/jp/example/greenreader/ui")
+template_dir = Path("scripts/ui_v65")
+for name in ("GreenMapView.kt", "CameraOverlayResultView.kt"):
+    (ui_dir / name).write_text((template_dir / name).read_text(encoding="utf-8"), encoding="utf-8")
+
 p=Path("app/src/main/java/jp/example/greenreader/MainActivity.kt")
 s=p.read_text(encoding="utf-8")
 
