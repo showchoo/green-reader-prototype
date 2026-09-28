@@ -92,7 +92,6 @@ def verify():
     assert "LOCAL_FIT_RADIUS_METERS = 0.32f" in analyzer
 
     assert 'button("診断コピー") { copyLastPrecisionDiagnostic() }' in s
-    assert 'recordPrecisionScanFailure("測定結果が揃いませんでした。もう一度スキャンしてください")' in s
     assert 'recordPrecisionScanFailure("測定結果が安定しませんでした。もう一度スキャンしてください")' in s
     assert '.setTitle(if (accepted)' not in s
     assert '.setTitle("測定データ")' not in s
@@ -151,6 +150,7 @@ def verify():
     assert "val precisionMinWindows = 5" in s
     assert "val precisionMaxWindows = 8" in s
     assert '"追加測定中… "' in s
+    assert 'recordPrecisionScanFailure("追加測定しても結果が安定しませんでした。もう一度スキャンしてください")' in s
 
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
     assert 'versionName = "6.9"' in gradle and 'versionCode = 690' in gradle
