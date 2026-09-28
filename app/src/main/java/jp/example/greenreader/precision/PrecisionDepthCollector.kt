@@ -30,6 +30,7 @@ class PrecisionDepthCollector(
     private var notYetAvailableCount = 0
     private var otherErrorCount = 0
     private var lastError = ""
+    private var lastRequestedMaxDepthM = 5f
 
     @Synchronized fun clear() {
         samples.clear()
@@ -48,6 +49,7 @@ class PrecisionDepthCollector(
         notYetAvailableCount = 0
         otherErrorCount = 0
         lastError = ""
+        lastRequestedMaxDepthM = 5f
     }
 
     @Synchronized fun size(): Int = samples.size
@@ -69,6 +71,7 @@ class PrecisionDepthCollector(
         " points=" + samples.size +
         " notYet=" + notYetAvailableCount +
         " errors=" + otherErrorCount +
+        " maxDepth=" + String.format("%.2f", lastRequestedMaxDepthM) +
         " lastError=" + (if (lastError.isBlank()) "-" else lastError)
 
     @Synchronized
@@ -81,6 +84,7 @@ class PrecisionDepthCollector(
     ) {
         val camera = frame.camera
         if (camera.trackingState != TrackingState.TRACKING) return
+        lastRequestedMaxDepthM = maxDepthM
         attemptedFrames++
 
         var rawAccepted = false
