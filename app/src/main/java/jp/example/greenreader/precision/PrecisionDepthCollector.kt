@@ -31,6 +31,8 @@ class PrecisionDepthCollector(
     private var otherErrorCount = 0
     private var lastError = ""
     private var lastRequestedMaxDepthM = 5f
+    private var fullSupplementFrames = 0
+    private var lastFullSupplementMinDepthM = Float.NaN
 
     @Synchronized fun clear() {
         samples.clear()
@@ -50,6 +52,8 @@ class PrecisionDepthCollector(
         otherErrorCount = 0
         lastError = ""
         lastRequestedMaxDepthM = 5f
+        fullSupplementFrames = 0
+        lastFullSupplementMinDepthM = Float.NaN
     }
 
     @Synchronized fun size(): Int = samples.size
@@ -72,6 +76,8 @@ class PrecisionDepthCollector(
         " notYet=" + notYetAvailableCount +
         " errors=" + otherErrorCount +
         " maxDepth=" + String.format("%.2f", lastRequestedMaxDepthM) +
+        " fullSupplementFrames=" + fullSupplementFrames +
+        " fullSupplementMin=" + (if (lastFullSupplementMinDepthM.isFinite()) String.format("%.2f", lastFullSupplementMinDepthM) else "-") +
         " lastError=" + (if (lastError.isBlank()) "-" else lastError)
 
     @Synchronized
@@ -113,19 +119,35 @@ class PrecisionDepthCollector(
             lastError = "Raw:" + t.javaClass.simpleName + ":" + (t.message ?: "")
         }
 
-        if (rawAccepted) return
+        val ballInCamera = try {
+            camera.pose.inverse().transformPoint(referencePose.translation)
+        } catch (_: Throwable) {
+            null
+        }
+        val ballAxialDepthM = ballInCamera?.getOrNull(2)?.let { -it } ?: Float.NaN
+        val fullPlan = PrecisionFullDepthSupplementPolicy.plan(
+            rawAccepted = rawAccepted,
+            requestedMinDepthM = minDepthM,
+            requestedMaxDepthM = maxDepthM,
+            ballAxialDepthM = ballAxialDepthM
+        )
+        if (!fullPlan.useFull) return
 
         try {
             frame.acquireDepthImage16Bits().use { depth ->
                 fullAcquiredFrames++
                 fallbackFrames++
+                if (rawAccepted) {
+                    fullSupplementFrames++
+                    lastFullSupplementMinDepthM = fullPlan.minDepthM
+                }
                 integrateImage(
                     frame = frame,
                     referencePose = referencePose,
                     depth = depth,
                     confidence = null,
-                    pixelStrideStep = pixelStrideStep,
-                    minDepthM = minDepthM,
+                    pixelStrideStep = if (rawAccepted) max(6, pixelStrideStep) else pixelStrideStep,
+                    minDepthM = fullPlan.minDepthM,
                     maxDepthM = maxDepthM,
                     isRaw = false
                 )
