@@ -1,7 +1,6 @@
 package jp.example.greenreader.ui
 
 import android.content.Context
-import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -28,7 +27,6 @@ class NeonScanOverlayView(context: Context) : View(context) {
     init {
         isClickable = false
         isFocusable = false
-        setLayerType(LAYER_TYPE_SOFTWARE, null)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -67,9 +65,7 @@ class NeonScanOverlayView(context: Context) : View(context) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = 2.5f
             paint.color = Color.argb(210, 85, 255, 214)
-            paint.setShadowLayer(18f, 0f, 0f, Color.rgb(0, 255, 190))
             canvas.drawLine(margin, beamY, width - margin, beamY, paint)
-            paint.clearShadowLayer()
 
             paint.style = Paint.Style.FILL
             paint.color = Color.argb(25, 0, 255, 170)
@@ -93,7 +89,6 @@ class NeonScanOverlayView(context: Context) : View(context) {
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 2.5f
         paint.color = Color.argb(190, 66, 255, 205)
-        paint.setShadowLayer(10f, 0f, 0f, Color.rgb(0, 255, 190))
 
         canvas.drawLine(l, t + c, l, t, paint)
         canvas.drawLine(l, t, l + c, t, paint)
@@ -104,6 +99,5 @@ class NeonScanOverlayView(context: Context) : View(context) {
         canvas.drawLine(r - c, b, r, b, paint)
         canvas.drawLine(r, b - c, r, b, paint)
 
-        paint.clearShadowLayer()
     }
 }
