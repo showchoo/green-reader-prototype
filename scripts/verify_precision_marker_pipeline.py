@@ -43,8 +43,17 @@ def verify():
     for name in ("exactSurfaceHitPoint", "tinyNearbyHitPoint", "currentAnalysisMarks"):
         function(name)
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "5.5"' in gradle and 'versionCode = 550' in gradle
-    assert 'appVersion = "Precision 5.5"' in s
+    assert 'versionName = "5.6"' in gradle and 'versionCode = 560' in gradle
+    assert 'appVersion = "Precision 5.6"' in s
+    # Both surface paths must enumerate hits and apply pair validation before
+    # returning a candidate. The Depth fallbacks use this same candidate gate.
+    surface = function("admissibleSurfaceHit")
+    assert 'Plane.Type.HORIZONTAL_UPWARD_FACING' in surface
+    assert 'for ((index, hit) in hits.withIndex())' in surface
+    assert surface.index('tracedMarkCandidate(') < surface.index('return point')
+    assert 'admissibleSurfaceHit(' in function("exactSurfaceHitPoint")
+    assert 'admissibleSurfaceHit(' in function("tinyNearbyHitPoint")
+    assert 'PrecisionMarkerCandidateGate.evaluate(' in function("tracedMarkCandidate")
 
 
 verify()
@@ -61,4 +70,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v5.5 marker pipeline verified; v32 regression detected by negative check")
+print("Final Precision v5.6 marker pipeline verified; v32 regression detected by negative check")
