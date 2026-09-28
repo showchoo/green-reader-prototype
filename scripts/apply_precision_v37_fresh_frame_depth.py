@@ -323,3 +323,4 @@ g=g.replace('versionCode = 560', 'versionCode = 570', 1)
 p.write_text(s, encoding='utf-8')
 gradle.write_text(g, encoding='utf-8')
 print('Applied Precision v5.7 fresh-frame tap resolution + Depth diagnostics')
+# Trigger Precision v5.7 build
