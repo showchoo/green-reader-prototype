@@ -10,6 +10,7 @@ import jp.example.greenreader.analysis.GrainReport
 import jp.example.greenreader.analysis.PuttAdvisor
 import jp.example.greenreader.analysis.SlopeReport
 import jp.example.greenreader.analysis.Vec3
+import jp.example.greenreader.precision.PrecisionDepthPoint
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -52,15 +53,22 @@ object ScanFieldRecorder {
         report: SlopeReport,
         advice: PuttAdvisor.Advice,
         grain: GrainReport?,
-        meta: CaptureMeta
+        meta: CaptureMeta,
+        precisionPoints: List<PrecisionDepthPoint> = emptyList(),
+        precisionDiagnostic: String = "",
+        markerDiagnostic: String = "",
+        collectorDiagnostic: String = ""
     ): String {
         val id = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
         val folder = "scan_$id"
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             saveModern(context, folder, bitmap, points, ball, cup, report, advice, grain, meta)
+            savePrecisionExtrasModern(context, folder, precisionPoints, precisionDiagnostic, markerDiagnostic, collectorDiagnostic)
             "Download/$ROOT/$folder"
         } else {
-            saveLegacy(context, folder, bitmap, points, ball, cup, report, advice, grain, meta)
+            val path = saveLegacy(context, folder, bitmap, points, ball, cup, report, advice, grain, meta)
+            savePrecisionExtrasLegacy(File(path), precisionPoints, precisionDiagnostic, markerDiagnostic, collectorDiagnostic)
+            path
         }
     }
 
@@ -99,6 +107,122 @@ object ScanFieldRecorder {
                 }
             }
         }
+    }
+
+    fun saveFailure(
+        context: Context,
+        precisionPoints: List<PrecisionDepthPoint>,
+        ball: Vec3?,
+        cup: Vec3?,
+        reason: String,
+        precisionDiagnostic: String,
+        markerDiagnostic: String,
+        collectorDiagnostic: String,
+        meta: CaptureMeta
+    ): String {
+        val id = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+        val folder = "scan_${id}_FAILED"
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val rel = Environment.DIRECTORY_DOWNLOADS + "/$ROOT/$folder"
+            writeDownload(context, rel, "metadata.json", "application/json") { out ->
+                out.bufferedWriter().use {
+                    it.write(failureMetadataJson(ball, cup, reason, meta, precisionPoints.size))
+                }
+            }
+            savePrecisionExtrasModern(
+                context, folder, precisionPoints, precisionDiagnostic,
+                markerDiagnostic, collectorDiagnostic
+            )
+            "Download/$ROOT/$folder"
+        } else {
+            val dir = File(context.getExternalFilesDir(null), "$ROOT/$folder").apply { mkdirs() }
+            File(dir, "metadata.json").writeText(
+                failureMetadataJson(ball, cup, reason, meta, precisionPoints.size)
+            )
+            savePrecisionExtrasLegacy(
+                dir, precisionPoints, precisionDiagnostic,
+                markerDiagnostic, collectorDiagnostic
+            )
+            dir.absolutePath
+        }
+    }
+
+    private fun savePrecisionExtrasModern(
+        context: Context,
+        folder: String,
+        precisionPoints: List<PrecisionDepthPoint>,
+        precisionDiagnostic: String,
+        markerDiagnostic: String,
+        collectorDiagnostic: String
+    ) {
+        val rel = Environment.DIRECTORY_DOWNLOADS + "/$ROOT/$folder"
+        writeDownload(context, rel, "precision_depth_points.csv", "text/csv") { out ->
+            writePrecisionPoints(out, precisionPoints)
+        }
+        writeDownload(context, rel, "precision_diagnostics.txt", "text/plain") { out ->
+            out.bufferedWriter().use { it.write(precisionDiagnostic) }
+        }
+        writeDownload(context, rel, "marker_diagnostics.txt", "text/plain") { out ->
+            out.bufferedWriter().use { it.write(markerDiagnostic) }
+        }
+        writeDownload(context, rel, "collector_diagnostics.txt", "text/plain") { out ->
+            out.bufferedWriter().use { it.write(collectorDiagnostic) }
+        }
+    }
+
+    private fun savePrecisionExtrasLegacy(
+        dir: File,
+        precisionPoints: List<PrecisionDepthPoint>,
+        precisionDiagnostic: String,
+        markerDiagnostic: String,
+        collectorDiagnostic: String
+    ) {
+        File(dir, "precision_depth_points.csv").outputStream().use { out ->
+            writePrecisionPoints(out, precisionPoints)
+        }
+        File(dir, "precision_diagnostics.txt").writeText(precisionDiagnostic)
+        File(dir, "marker_diagnostics.txt").writeText(markerDiagnostic)
+        File(dir, "collector_diagnostics.txt").writeText(collectorDiagnostic)
+    }
+
+    private fun writePrecisionPoints(
+        out: java.io.OutputStream,
+        points: List<PrecisionDepthPoint>
+    ) {
+        out.bufferedWriter().use { w ->
+            w.write("index,x_m,y_m,z_m,confidence,frame_timestamp_ns\n")
+            points.forEachIndexed { i, p ->
+                w.write(
+                    "$i,${f(p.x)},${f(p.y)},${f(p.z)},${f(p.confidence)},${p.frameTimestampNs}\n"
+                )
+            }
+        }
+    }
+
+    private fun failureMetadataJson(
+        ball: Vec3?,
+        cup: Vec3?,
+        reason: String,
+        meta: CaptureMeta,
+        precisionPointCount: Int
+    ): String {
+        fun vecOrNull(v: Vec3?) = if (v == null) "null" else
+            "{\"x\":${f(v.x)},\"y\":${f(v.y)},\"z\":${f(v.z)}}"
+        fun arr(a: FloatArray) = a.joinToString(prefix = "[", postfix = "]") { f(it) }
+        return """{
+  \"schema_version\": 2,
+  \"outcome\": \"failure\",
+  \"reason\": \"${escape(reason)}\",
+  \"app_version\": \"${escape(meta.appVersion)}\",
+  \"tracking_state\": \"${escape(meta.trackingState)}\",
+  \"viewport\": {\"width\": ${meta.viewportWidth}, \"height\": ${meta.viewportHeight}},
+  \"camera_translation\": ${arr(meta.cameraTranslation)},
+  \"camera_quaternion\": ${arr(meta.cameraQuaternion)},
+  \"ball_world\": ${vecOrNull(ball)},
+  \"cup_world\": ${vecOrNull(cup)},
+  \"precision_point_count\": $precisionPointCount
+}
+"""
     }
 
     private fun writeDownload(
