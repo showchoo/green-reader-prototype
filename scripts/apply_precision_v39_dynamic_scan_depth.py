@@ -81,3 +81,4 @@ assert "depthMax=" in s
 p.write_text(s, encoding="utf-8")
 gpath.write_text(g, encoding="utf-8")
 print("Applied Precision v5.9 dynamic scan depth ceiling")
+# Trigger Precision v5.9 build
