@@ -1,8 +1,4 @@
-"""Regression guard on the FINAL generated activity, after all CI patches.
-
-This catches downstream whole-function replacements which invalidate earlier
-patches even though every individual replacement script succeeds.
-"""
+"""Regression guard on the FINAL generated marker pipeline."""
 from pathlib import Path
 import re
 
@@ -21,32 +17,57 @@ def verify():
     apply = function("applyMark")
     success = apply[apply.index("        collector.clear()") :]
     ball, cup = success.split("        } else {", 1)
-    assert "markMode = 2" in ball, "Successful Ball must enable Cup taps (v32 regression)"
+    assert "markMode = 2" in ball, "Successful Ball must enable Cup taps"
     assert "markMode = 0" not in ball, "Ball must not disable touch input"
     assert "markMode = 0" in cup, "Successful Cup must end marking"
+    assert "finishPrecisionTap(mode, true)" in apply
+    assert "vertical > limit" in apply, "Keep immediate Cup height rejection"
+
     assert 'if (ev.action == MotionEvent.ACTION_UP && markMode != 0)' in s
     assert 'markAt(ev.x, ev.y)' in s
+
+    # v5.7: UI touch only queues screen coordinates. ARCore access happens on
+    # the next renderer Frame immediately after Session.update().
     mark = function("markAt")
-    assert "finishPrecisionTap(mode, false)" in mark
-    assert "ballPointFromNeighborDepth(f, x, y)" in mark
-    assert "PendingMark(" not in mark, "Never retry a stale tap on later frames"
+    assert "pendingMark = PendingMark(mode, x, y" in mark
+    assert "resolveMarkPoint(" not in mark
+    assert "acquireDepthImage" not in mark
+    assert "frame.hitTest" not in mark
+    assert "gl.requestRender()" in mark
+    assert "markMode = 0" not in mark
+
+    fresh = function("resolvePrecisionPendingTap")
+    assert "resolveMarkPoint(frame, pending.x, pending.y)" in fresh
+    assert "ballPointFromNeighborDepth(frame, pending.x, pending.y)" in fresh
+    assert "rawDepthPointNearTap(frame, pending.x, pending.y)" in fresh
+    assert "runOnUiThread" in fresh
+    assert "applyMark(mode, point)" in fresh
+
+    draw_update = s.index("            val f = s.update()")
+    fresh_call = s.index("            resolvePrecisionPendingTap(f)", draw_update)
+    assert fresh_call > draw_update
     assert "tryResolvePendingMark(f)" not in s
+
     resolver = function("resolveMarkPoint")
     assert resolver.index('"exactSurface"') < resolver.index('"nearbySurface"') < resolver.index('"exactDepth"')
+
+    # Full Depth paths must use IMAGE_PIXELS + imageIntrinsics.
     for name in ("depthPointAtTap", "ballPointFromNeighborDepth"):
         body = function(name)
         assert "Coordinates2d.IMAGE_PIXELS" in body
         assert "val intr = frame.camera.imageIntrinsics" in body
         assert "val intr = frame.camera.textureIntrinsics" not in body
-    assert "finishPrecisionTap(mode, true)" in apply
-    assert "vertical > limit" in apply, "Keep immediate Cup height rejection"
+
+    # Raw Depth fallback follows Google's native raw-depth reconstruction path.
+    raw = function("rawDepthPointNearTap")
+    assert "acquireRawDepthImage16Bits" in raw
+    assert "acquireRawDepthConfidenceImage" in raw
+    assert "val intr = frame.camera.textureIntrinsics" in raw
+    assert "conf < 128" in raw
+
     for name in ("exactSurfaceHitPoint", "tinyNearbyHitPoint", "currentAnalysisMarks"):
         function(name)
-    gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "5.6"' in gradle and 'versionCode = 560' in gradle
-    assert 'appVersion = "Precision 5.6"' in s
-    # Both surface paths must enumerate hits and apply pair validation before
-    # returning a candidate. The Depth fallbacks use this same candidate gate.
+
     surface = function("admissibleSurfaceHit")
     assert 'Plane.Type.HORIZONTAL_UPWARD_FACING' in surface
     assert 'for ((index, hit) in hits.withIndex())' in surface
@@ -55,14 +76,18 @@ def verify():
     assert 'admissibleSurfaceHit(' in function("tinyNearbyHitPoint")
     assert 'PrecisionMarkerCandidateGate.evaluate(' in function("tracedMarkCandidate")
 
+    gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
+    assert 'versionName = "5.7"' in gradle and 'versionCode = 570' in gradle
+    assert 'appVersion = "Precision 5.7"' in s
+
 
 verify()
-# Confirm that the guard really catches the historical failure, not just a token
-# elsewhere in applyMark (v32 had markMode=2 only in its reject path).
+
+# Negative check: the historical v32 regression must still be detected.
 original = s
 s = s.replace('            ball = p\n            markMode = 2\n',
               '            ball = p\n            markMode = 0\n', 1)
-assert s != original, "Regression mutation did not reach the Ball success branch"
+assert s != original, "Regression mutation did not reach Ball success branch"
 try:
     verify()
 except AssertionError as error:
@@ -70,4 +95,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v5.6 marker pipeline verified; v32 regression detected by negative check")
+print("Final Precision v5.7 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
