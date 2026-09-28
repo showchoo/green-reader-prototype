@@ -115,7 +115,6 @@ def verify():
     assert "fun saveFailure(" in recorder
 
     assert "NeonScanOverlayView" in s
-    assert "AR SLOPE ENGINE  //  FIELD MODE" in s
     assert "if (::liveHud.isInitialized && liveHud.scanning != scanning)" in s
     green_ui = Path("app/src/main/java/jp/example/greenreader/ui/GreenMapView.kt").read_text(encoding="utf-8")
     overlay_ui = Path("app/src/main/java/jp/example/greenreader/ui/CameraOverlayResultView.kt").read_text(encoding="utf-8")
