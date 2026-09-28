@@ -1,4 +1,4 @@
-name: Build Green Reader Precision v6.6
+name: Build Green Reader Precision v6.7
 
 on:
   pull_request:
@@ -49,7 +49,7 @@ jobs:
           python3 scripts/apply_v0818_known_good_geometry.py
           python3 scripts/apply_v0819_ball_center_depth_fallback.py
 
-      - name: Apply Precision v6.6
+      - name: Apply Precision v6.7
         run: |
           python3 scripts/apply_precision_v12_integrated.py
           python3 scripts/fix_precision_v12_3d_feed.py
@@ -86,12 +86,13 @@ jobs:
           python3 scripts/apply_precision_v44_complete_field_logging.py
           python3 scripts/apply_precision_v45_neon_hud_ui.py
           python3 scripts/apply_precision_v46_ar_startup_stability.py
+          python3 scripts/apply_precision_v47_collapsible_controls.py
           python3 scripts/verify_precision_marker_pipeline.py
 
       - name: Upload generated source for audit
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrecision-v6.6-generated-source
+          name: GreenReaderPrecision-v6.7-generated-source
           path: app/src/main/java/jp/example/greenreader/MainActivity.kt
           retention-days: 90
 
@@ -127,28 +128,28 @@ jobs:
           APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)"
           test -n "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK"
-          cp "$APK" GreenReaderPrecision-v6.6-debug.apk
+          cp "$APK" GreenReaderPrecision-v6.7-debug.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrecision-v6.6-debug
-          path: GreenReaderPrecision-v6.6-debug.apk
+          name: GreenReaderPrecision-v6.7-debug
+          path: GreenReaderPrecision-v6.7-debug.apk
           if-no-files-found: error
           retention-days: 90
 
       - name: Publish APK for direct download
         shell: bash
         run: |
-          APK="$PWD/GreenReaderPrecision-v6.6-debug.apk"
-          cp "$APK" "$RUNNER_TEMP/GreenReaderPrecision-v6.6-debug.apk"
+          APK="$PWD/GreenReaderPrecision-v6.7-debug.apk"
+          cp "$APK" "$RUNNER_TEMP/GreenReaderPrecision-v6.7-debug.apk"
           git fetch origin apk-downloads
           git reset --hard
           git clean -fd
           git checkout -B apk-downloads origin/apk-downloads
           mkdir -p downloads
-          cp "$RUNNER_TEMP/GreenReaderPrecision-v6.6-debug.apk" downloads/GreenReaderPrecision-v6.6-debug.apk
+          cp "$RUNNER_TEMP/GreenReaderPrecision-v6.7-debug.apk" downloads/GreenReaderPrecision-v6.7-debug.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add downloads/GreenReaderPrecision-v6.6-debug.apk
-          git commit -m "Publish Green Reader Precision v6.6 APK" || true
+          git add downloads/GreenReaderPrecision-v6.7-debug.apk
+          git commit -m "Publish Green Reader Precision v6.7 APK" || true
           git push origin HEAD:apk-downloads
