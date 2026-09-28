@@ -35,6 +35,7 @@ class CameraOverlayResultView(context: Context) : View(context) {
         private set
     var advice: PuttAdvisor.Advice? = null
         private set
+    private var positiveCrossScreen: PointF? = null
 
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val dimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -93,13 +94,15 @@ class CameraOverlayResultView(context: Context) : View(context) {
         ball: PointF,
         cup: PointF,
         slopeReport: SlopeReport,
-        puttAdvice: PuttAdvisor.Advice
+        puttAdvice: PuttAdvisor.Advice,
+        positiveCrossDirection: PointF? = null
     ) {
         frameBitmap = bitmap
         ballPoint = PointF(ball.x, ball.y)
         cupPoint = PointF(cup.x, cup.y)
         report = slopeReport
         advice = puttAdvice
+        positiveCrossScreen = positiveCrossDirection?.let { PointF(it.x, it.y) }
         invalidate()
     }
 
@@ -114,6 +117,7 @@ class CameraOverlayResultView(context: Context) : View(context) {
         cupPoint = null
         report = null
         advice = null
+        positiveCrossScreen = null
         invalidate()
     }
 
@@ -150,8 +154,9 @@ class CameraOverlayResultView(context: Context) : View(context) {
         val screenDistance = hypot(dx.toDouble(), dy.toDouble()).toFloat().coerceAtLeast(1f)
         val ux = dx / screenDistance
         val uy = dy / screenDistance
-        val nx = uy
-        val ny = -ux
+        val projectedCross = positiveCrossScreen
+        val nx = projectedCross?.x ?: uy
+        val ny = projectedCross?.y ?: -ux
 
         val pxPerMeter = screenDistance / r.distanceMeters.coerceAtLeast(0.2f)
         val aimPx = ((a.aimOffsetCm / 100f) * pxPerMeter)
@@ -213,8 +218,9 @@ class CameraOverlayResultView(context: Context) : View(context) {
         val d = hypot(dx.toDouble(), dy.toDouble()).toFloat().coerceAtLeast(1f)
         val ux = dx / d
         val uy = dy / d
-        val nx = uy
-        val ny = -ux
+        val projectedCross = positiveCrossScreen
+        val nx = projectedCross?.x ?: uy
+        val ny = projectedCross?.y ?: -ux
         val phase = (SystemClock.uptimeMillis() % 1200L) / 1200f
         val pulse = 0.55f + 0.45f * kotlin.math.sin(phase * Math.PI.toFloat() * 2f)
 
