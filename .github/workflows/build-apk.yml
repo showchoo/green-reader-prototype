@@ -32,12 +32,6 @@ jobs:
         with:
           packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
-      - name: Restore persistent debug signing key
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: green-reader-debug-keystore-v1
-
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -46,16 +40,32 @@ jobs:
       - name: Generate Precision v7.0 source
         run: python3 scripts/build_precision_v70.py
 
+      - name: Prepare v6.9-compatible signing key
+        shell: bash
+        run: |
+          base64 --decode scripts/precision-debug-keystore.b64 > "$RUNNER_TEMP/greenreader-release.jks"
+          echo "GREEN_READER_KEYSTORE_PATH=$RUNNER_TEMP/greenreader-release.jks" >> "$GITHUB_ENV"
+          echo "GREEN_READER_STORE_PASSWORD=greenreader" >> "$GITHUB_ENV"
+          echo "GREEN_READER_KEY_ALIAS=greenreader-debug" >> "$GITHUB_ENV"
+          echo "GREEN_READER_KEY_PASSWORD=greenreader" >> "$GITHUB_ENV"
+
       - name: Run unit tests and build APK
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 
-      - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk GreenReaderPrecision-v7.0-debug.apk
+      - name: Verify v6.9 signing certificate
+        shell: bash
+        run: |
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          CERT="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+          echo "APK signing certificate SHA-256: $CERT"
+          test "$CERT" = "2c06a12144ece069f117dc495c49a15e14108e61167ac9befddbfd4c60919fa0"
+          cp "$APK" GreenReaderPrecision-v7.0-v69-compatible.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrecision-v7.0-debug-apk
-          path: GreenReaderPrecision-v7.0-debug.apk
+          name: GreenReaderPrecision-v7.0-v69-compatible-apk
+          path: GreenReaderPrecision-v7.0-v69-compatible.apk
           if-no-files-found: error
           retention-days: 30
