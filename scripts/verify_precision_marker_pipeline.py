@@ -60,6 +60,10 @@ def verify():
 
     # Raw Depth fallback follows Google's native raw-depth reconstruction path.
     assert "PrecisionDepthRangePolicy.maxDepthM(" in s
+    collector = Path("app/src/main/java/jp/example/greenreader/precision/PrecisionDepthCollector.kt").read_text(encoding="utf-8")
+    assert "PrecisionFullDepthSupplementPolicy.plan(" in collector
+    assert "fullSupplementFrames" in collector
+    assert "pixelStrideStep = if (rawAccepted) max(6, pixelStrideStep) else pixelStrideStep" in collector
     assert "maxDepthM = precisionScanMaxDepthM" in s
 
     raw = function("rawDepthPointNearTap")
@@ -80,8 +84,8 @@ def verify():
     assert 'PrecisionMarkerCandidateGate.evaluate(' in function("tracedMarkCandidate")
 
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "5.9"' in gradle and 'versionCode = 590' in gradle
-    assert 'appVersion = "Precision 5.9"' in s
+    assert 'versionName = "6.0"' in gradle and 'versionCode = 600' in gradle
+    assert 'appVersion = "Precision 6.0"' in s
 
 
 verify()
@@ -98,4 +102,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v5.9 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
+print("Final Precision v6.0 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
