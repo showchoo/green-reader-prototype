@@ -91,9 +91,15 @@ def verify():
     assert "maxLocalDeltaPercent = 5.0f" in analyzer
     assert "LOCAL_FIT_RADIUS_METERS = 0.32f" in analyzer
 
+    assert 'button("診断コピー") { copyLastPrecisionDiagnostic() }' in s
+    assert 'recordPrecisionScanFailure("測定結果が揃いませんでした。もう一度スキャンしてください")' in s
+    assert 'recordPrecisionScanFailure("測定結果が安定しませんでした。もう一度スキャンしてください")' in s
+    assert 'showPrecisionFailureDialog("カップ位置を取得できませんでした。もう一度カップをタップしてください")' in s
+    assert 'showPrecisionFailureDialog("ボール位置を取得できませんでした。もう一度タップしてください")' in s
+
     gradle = Path("app/build.gradle.kts").read_text(encoding="utf-8")
-    assert 'versionName = "6.1"' in gradle and 'versionCode = 610' in gradle
-    assert 'appVersion = "Precision 6.1"' in s
+    assert 'versionName = "6.2"' in gradle and 'versionCode = 620' in gradle
+    assert 'appVersion = "Precision 6.2"' in s
 
 
 verify()
@@ -110,4 +116,4 @@ except AssertionError as error:
 else:
     raise AssertionError("Verifier failed to detect disabled Cup taps")
 s = original
-print("Final Precision v6.1 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
+print("Final Precision v6.2 marker pipeline verified: fresh-frame tap + Depth fallback guards active")
