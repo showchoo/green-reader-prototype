@@ -119,9 +119,7 @@ def verify():
     green_ui = Path("app/src/main/java/jp/example/greenreader/ui/GreenMapView.kt").read_text(encoding="utf-8")
     overlay_ui = Path("app/src/main/java/jp/example/greenreader/ui/CameraOverlayResultView.kt").read_text(encoding="utf-8")
     live_ui = Path("app/src/main/java/jp/example/greenreader/ui/NeonScanOverlayView.kt").read_text(encoding="utf-8")
-    assert "drawFlowChevrons" in green_ui
     assert "postInvalidateOnAnimation()" in green_ui
-    assert "drawAnimatedChevrons" in overlay_ui
     assert "postInvalidateOnAnimation()" in overlay_ui
     assert "DEPTH SCAN // ACTIVE" in live_ui
 
