@@ -16,3 +16,4 @@ g = g.replace('versionName = "5.9"', 'versionName = "6.0"', 1)
 g = g.replace('versionCode = 590', 'versionCode = 600', 1)
 gpath.write_text(g, encoding="utf-8")
 print("Applied Precision v6.0 long-scan Raw+Full Depth supplementation version")
+# Trigger Precision v6.0 build
