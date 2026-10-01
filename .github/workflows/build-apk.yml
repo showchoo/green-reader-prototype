@@ -1,13 +1,13 @@
-name: Build Green Reader Precision v7
+name: Build Green Reader Precision v7.1
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - "chatgpt-v70-session-quality"
+      - "chatgpt-v71-auto-field-recording"
   pull_request:
     branches:
-      - "precision-v21-no-gmail-build"
+      - "chatgpt-v70-session-quality"
 
 permissions:
   contents: read
@@ -37,8 +37,8 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Generate Precision v7.0 source
-        run: python3 scripts/build_precision_v70.py
+      - name: Generate Precision v7.1 source
+        run: python3 scripts/build_precision_v71.py
 
       - name: Prepare v6.9-compatible signing key
         shell: bash
