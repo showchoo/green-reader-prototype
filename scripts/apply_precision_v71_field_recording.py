@@ -32,7 +32,7 @@ r = once(r,
 ''',
 "record identity JSON hole number")
 
-r = once(r,
+fg_start = r.index("    fun saveFailureGrouped(")\nfg_end = r.index("\\n    private fun groupedFolder", fg_start)\nfg = r[fg_start:fg_end]\n\nfg = once(fg,
 """        identity: RecordIdentity,
         quality: PrecisionScanQuality?
     ): String {
@@ -44,7 +44,7 @@ r = once(r,
 """,
 "failure grouped bitmap parameter")
 
-r = once(r,
+fg = once(fg,
 """        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val rel = Environment.DIRECTORY_DOWNLOADS + "/$ROOT/$folder"
             writeDownload(context, rel, "metadata.json", "application/json") { out ->
@@ -60,7 +60,7 @@ r = once(r,
 """,
 "failure grouped modern camera image")
 
-r = once(r,
+fg = once(fg,
 """        } else {
             val dir = File(context.getExternalFilesDir(null), "$ROOT/$folder").apply { mkdirs() }
             File(dir, "metadata.json").writeText(
@@ -76,7 +76,7 @@ r = once(r,
 """,
 "failure grouped legacy camera image")
 
-insert_before = "    private fun groupedFolder(identity: RecordIdentity, failed: Boolean): String {\n"
+r = r[:fg_start] + fg + r[fg_end:]\n\ninsert_before = "    private fun groupedFolder(identity: RecordIdentity, failed: Boolean): String {\n"
 if insert_before not in r:
     raise SystemExit("v7.1 result recorder insertion point missing")
 result_fn = r'''    fun savePuttResult(
