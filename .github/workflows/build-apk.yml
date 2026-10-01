@@ -7,7 +7,7 @@ on:
       - "chatgpt-v71-auto-field-recording"
   pull_request:
     branches:
-      - "precision-v21-no-gmail-build"
+      - "chatgpt-v70-session-quality"
 
 permissions:
   contents: read
