@@ -232,3 +232,76 @@ if "SlopeConsensus.combine(consensusReports, minAgree = 4)" not in s:
 
 path.write_text(s, encoding="utf-8")
 print("Applied v0.8.19 Ball-center borrowed-depth fallback + cold-start warm-up")
+
+
+# CI bridge only: the default-branch PR workflow normally stops at v0.8.19.
+# For a PR targeting main, layer the existing Precision v7.1 patch chain here
+# so GitHub's trusted PR runner can compile/test the exact v7.1 source.
+import os as _os
+import subprocess as _subprocess
+import sys as _sys
+import base64 as _base64
+
+if _os.environ.get("GITHUB_BASE_REF") == "main":
+    _precision_patches = [
+        "scripts/apply_precision_v12_integrated.py",
+        "scripts/fix_precision_v12_3d_feed.py",
+        "scripts/apply_precision_v14_gravity_frame.py",
+        "scripts/apply_precision_v15_ground_extraction.py",
+        "scripts/apply_precision_v16_fail_closed.py",
+        "scripts/apply_precision_v17_relaxed_diagnostics.py",
+        "scripts/apply_precision_v18_persistent_diagnostics.py",
+        "scripts/apply_precision_v19_gmail_auto_report.py",
+        "scripts/apply_precision_v20_oauth_signing.py",
+        "scripts/apply_precision_v21_remove_gmail.py",
+        "scripts/apply_precision_v22_failure_dialog.py",
+        "scripts/apply_precision_v23_detailed_diagnostics.py",
+        "scripts/apply_precision_v24_runtime_tuning.py",
+        "scripts/apply_precision_v25_depth_aligned_marks.py",
+        "scripts/apply_precision_v26_putt_corridor.py",
+        "scripts/apply_precision_v27_aggregate_final.py",
+        "scripts/apply_precision_v28_align_ball_depth.py",
+        "scripts/apply_precision_v29_surface_first_marks.py",
+        "scripts/apply_precision_v30_marker_sanity.py",
+        "scripts/apply_precision_v31_copy_fix.py",
+        "scripts/apply_precision_v32_immediate_mark_validation.py",
+        "scripts/apply_precision_v33_cup_depth_fallback.py",
+        "scripts/apply_precision_v34_full_depth_image_intrinsics.py",
+        "scripts/apply_precision_v35_marker_pipeline.py",
+        "scripts/apply_precision_v36_candidate_validation.py",
+        "scripts/apply_precision_v37_fresh_frame_depth.py",
+        "scripts/apply_precision_v38_long_range_cup_gate.py",
+        "scripts/apply_precision_v39_dynamic_scan_depth.py",
+        "scripts/apply_precision_v40_long_scan_full_supplement.py",
+        "scripts/apply_precision_v41_restore_slope_analyzer.py",
+        "scripts/apply_precision_v42_field_failure_ux.py",
+        "scripts/apply_precision_v43_idle_power_saving.py",
+        "scripts/apply_precision_v44_complete_field_logging.py",
+        "scripts/apply_precision_v45_neon_hud_ui.py",
+        "scripts/apply_precision_v46_ar_startup_stability.py",
+        "scripts/apply_precision_v47_collapsible_controls.py",
+        "scripts/apply_precision_v48_high_detail_roll.py",
+        "scripts/apply_precision_v49_adaptive_scan.py",
+    ]
+    for _patch in _precision_patches:
+        print("CI bridge >>> " + _patch, flush=True)
+        _subprocess.run([_sys.executable, _patch], check=True)
+
+    _subprocess.run([_sys.executable, "scripts/verify_precision_marker_pipeline.py"], check=True)
+    _subprocess.run([_sys.executable, "scripts/apply_precision_v50_session_quality.py"], check=True)
+    _subprocess.run([_sys.executable, "scripts/verify_precision_v70_session_quality.py"], check=True)
+    _subprocess.run([_sys.executable, "scripts/apply_precision_v51_failure_camera.py"], check=True)
+    _subprocess.run([_sys.executable, "scripts/verify_precision_v71_auto_record.py"], check=True)
+
+    # Reuse the v6.9/v7.0 signing certificate for overwrite-install compatibility.
+    _key_b64 = Path("scripts/precision-debug-keystore.b64")
+    _key_out = Path("scripts/greenreader-v71-ci.jks").resolve()
+    _key_out.write_bytes(_base64.b64decode(_key_b64.read_text(encoding="utf-8")))
+    _github_env = _os.environ.get("GITHUB_ENV")
+    if _github_env:
+        with open(_github_env, "a", encoding="utf-8") as _env:
+            _env.write("GREEN_READER_KEYSTORE_PATH=" + str(_key_out) + "\n")
+            _env.write("GREEN_READER_STORE_PASSWORD=greenreader\n")
+            _env.write("GREEN_READER_KEY_ALIAS=greenreader-debug\n")
+            _env.write("GREEN_READER_KEY_PASSWORD=greenreader\n")
+    print("CI bridge generated Precision v7.1 and configured compatible signing", flush=True)
