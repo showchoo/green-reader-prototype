@@ -1,10 +1,10 @@
-name: Build Green Reader Precision v7
+name: Build Green Reader Precision v7.1
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - "chatgpt-v70-session-quality"
+      - "chatgpt-v71-field-recording"
   pull_request:
     branches:
       - "precision-v21-no-gmail-build"
@@ -60,12 +60,12 @@ jobs:
           CERT="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
           echo "APK signing certificate SHA-256: $CERT"
           test "$CERT" = "2c06a12144ece069f117dc495c49a15e14108e61167ac9befddbfd4c60919fa0"
-          cp "$APK" GreenReaderPrecision-v7.0-v69-compatible.apk
+          cp "$APK" GreenReaderPrecision-v7.1-v69-compatible.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GreenReaderPrecision-v7.0-v69-compatible-apk
-          path: GreenReaderPrecision-v7.0-v69-compatible.apk
+          name: GreenReaderPrecision-v7.1-v69-compatible-apk
+          path: GreenReaderPrecision-v7.1-v69-compatible.apk
           if-no-files-found: error
           retention-days: 30
