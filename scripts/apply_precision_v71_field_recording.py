@@ -32,7 +32,11 @@ r = once(r,
 ''',
 "record identity JSON hole number")
 
-fg_start = r.index("    fun saveFailureGrouped(")\nfg_end = r.index("\\n    private fun groupedFolder", fg_start)\nfg = r[fg_start:fg_end]\n\nfg = once(fg,
+fg_start = r.index("    fun saveFailureGrouped(")
+fg_end = r.index("\n    private fun groupedFolder", fg_start)
+fg = r[fg_start:fg_end]
+
+fg = once(fg,
 """        identity: RecordIdentity,
         quality: PrecisionScanQuality?
     ): String {
@@ -76,7 +80,9 @@ fg = once(fg,
 """,
 "failure grouped legacy camera image")
 
-r = r[:fg_start] + fg + r[fg_end:]\n\ninsert_before = "    private fun groupedFolder(identity: RecordIdentity, failed: Boolean): String {\n"
+r = r[:fg_start] + fg + r[fg_end:]
+
+insert_before = "    private fun groupedFolder(identity: RecordIdentity, failed: Boolean): String {\n"
 if insert_before not in r:
     raise SystemExit("v7.1 result recorder insertion point missing")
 result_fn = r'''    fun savePuttResult(
