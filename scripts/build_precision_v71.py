@@ -75,5 +75,5 @@ for patch in PATCHES:
 
 run("scripts/verify_precision_marker_pipeline.py")
 run("scripts/apply_precision_v50_session_quality.py")
-run("scripts/verify_precision_v70_session_quality.py")
-print("\nGenerated Green Reader Precision v7.0 successfully")
+run("scripts/verify_precision_v70_session_quality.py")\nrun("scripts/apply_precision_v51_failure_camera.py")\nrun("scripts/verify_precision_v71_auto_record.py")
+print("\nGenerated Green Reader Precision v7.1 successfully")
