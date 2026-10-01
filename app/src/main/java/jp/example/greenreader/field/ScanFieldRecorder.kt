@@ -10,6 +10,8 @@ import jp.example.greenreader.analysis.GrainReport
 import jp.example.greenreader.analysis.PuttAdvisor
 import jp.example.greenreader.analysis.SlopeReport
 import jp.example.greenreader.analysis.Vec3
+import jp.example.greenreader.precision.PrecisionDepthPoint
+import jp.example.greenreader.precision.PrecisionScanQuality
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -30,6 +32,14 @@ import java.util.Locale
 object ScanFieldRecorder {
     private const val ROOT = "GreenReaderRecords"
 
+    data class RecordIdentity(
+        val sessionId: String,
+        val puttId: Int,
+        val scanIndex: Int,
+        val scanStartedAtEpochMs: Long,
+        val scanFinishedAtEpochMs: Long
+    )
+
     data class CaptureMeta(
         val appVersion: String,
         val trackingState: String,
@@ -40,7 +50,8 @@ object ScanFieldRecorder {
         val ballScreenX: Float?,
         val ballScreenY: Float?,
         val cupScreenX: Float?,
-        val cupScreenY: Float?
+        val cupScreenY: Float?,
+        val arCoreDepthSupported: Boolean = false
     )
 
     fun save(
@@ -52,16 +63,190 @@ object ScanFieldRecorder {
         report: SlopeReport,
         advice: PuttAdvisor.Advice,
         grain: GrainReport?,
-        meta: CaptureMeta
+        meta: CaptureMeta,
+        precisionPoints: List<PrecisionDepthPoint> = emptyList(),
+        precisionDiagnostic: String = "",
+        markerDiagnostic: String = "",
+        collectorDiagnostic: String = ""
     ): String {
         val id = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
         val folder = "scan_$id"
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             saveModern(context, folder, bitmap, points, ball, cup, report, advice, grain, meta)
+            savePrecisionExtrasModern(context, folder, precisionPoints, precisionDiagnostic, markerDiagnostic, collectorDiagnostic)
             "Download/$ROOT/$folder"
         } else {
-            saveLegacy(context, folder, bitmap, points, ball, cup, report, advice, grain, meta)
+            val path = saveLegacy(context, folder, bitmap, points, ball, cup, report, advice, grain, meta)
+            savePrecisionExtrasLegacy(File(path), precisionPoints, precisionDiagnostic, markerDiagnostic, collectorDiagnostic)
+            path
         }
+    }
+
+
+    fun saveGrouped(
+        context: Context,
+        bitmap: Bitmap,
+        points: List<Vec3>,
+        ball: Vec3,
+        cup: Vec3,
+        report: SlopeReport,
+        advice: PuttAdvisor.Advice,
+        grain: GrainReport?,
+        meta: CaptureMeta,
+        precisionPoints: List<PrecisionDepthPoint>,
+        precisionDiagnostic: String,
+        markerDiagnostic: String,
+        collectorDiagnostic: String,
+        identity: RecordIdentity,
+        quality: PrecisionScanQuality?
+    ): String {
+        val folder = groupedFolder(identity, failed = false)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            saveModern(context, folder, bitmap, points, ball, cup, report, advice, grain, meta)
+            savePrecisionExtrasModern(
+                context, folder, precisionPoints, precisionDiagnostic,
+                markerDiagnostic, collectorDiagnostic
+            )
+            saveRecordExtrasModern(context, folder, identity, meta, quality)
+            "Download/$ROOT/$folder"
+        } else {
+            val path = saveLegacy(context, folder, bitmap, points, ball, cup, report, advice, grain, meta)
+            val dir = File(path)
+            savePrecisionExtrasLegacy(
+                dir, precisionPoints, precisionDiagnostic,
+                markerDiagnostic, collectorDiagnostic
+            )
+            saveRecordExtrasLegacy(dir, identity, meta, quality)
+            path
+        }
+    }
+
+    fun saveFailureGrouped(
+        context: Context,
+        precisionPoints: List<PrecisionDepthPoint>,
+        ball: Vec3?,
+        cup: Vec3?,
+        reason: String,
+        precisionDiagnostic: String,
+        markerDiagnostic: String,
+        collectorDiagnostic: String,
+        meta: CaptureMeta,
+        identity: RecordIdentity,
+        quality: PrecisionScanQuality?
+    ): String {
+        val folder = groupedFolder(identity, failed = true)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val rel = Environment.DIRECTORY_DOWNLOADS + "/$ROOT/$folder"
+            writeDownload(context, rel, "metadata.json", "application/json") { out ->
+                out.bufferedWriter().use {
+                    it.write(failureMetadataJson(ball, cup, reason, meta, precisionPoints.size))
+                }
+            }
+            savePrecisionExtrasModern(
+                context, folder, precisionPoints, precisionDiagnostic,
+                markerDiagnostic, collectorDiagnostic
+            )
+            saveRecordExtrasModern(context, folder, identity, meta, quality)
+            "Download/$ROOT/$folder"
+        } else {
+            val dir = File(context.getExternalFilesDir(null), "$ROOT/$folder").apply { mkdirs() }
+            File(dir, "metadata.json").writeText(
+                failureMetadataJson(ball, cup, reason, meta, precisionPoints.size)
+            )
+            savePrecisionExtrasLegacy(
+                dir, precisionPoints, precisionDiagnostic,
+                markerDiagnostic, collectorDiagnostic
+            )
+            saveRecordExtrasLegacy(dir, identity, meta, quality)
+            dir.absolutePath
+        }
+    }
+
+    private fun groupedFolder(identity: RecordIdentity, failed: Boolean): String {
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+        val session = identity.sessionId.replace(Regex("[^A-Za-z0-9_-]"), "_")
+        val putt = String.format(Locale.US, "Putt_%03d", identity.puttId)
+        val scan = String.format(Locale.US, "Scan_%02d", identity.scanIndex)
+        return "Session_$session/$putt/${scan}_$stamp" + if (failed) "_FAILED" else ""
+    }
+
+    private fun saveRecordExtrasModern(
+        context: Context,
+        folder: String,
+        identity: RecordIdentity,
+        meta: CaptureMeta,
+        quality: PrecisionScanQuality?
+    ) {
+        val rel = Environment.DIRECTORY_DOWNLOADS + "/$ROOT/$folder"
+        writeDownload(context, rel, "record_identity.json", "application/json") { out ->
+            out.bufferedWriter().use { it.write(recordIdentityJson(context, identity, meta)) }
+        }
+        quality?.let { q ->
+            writeDownload(context, rel, "scan_quality.json", "application/json") { out ->
+                out.bufferedWriter().use { it.write(qualityJson(q)) }
+            }
+        }
+    }
+
+    private fun saveRecordExtrasLegacy(
+        dir: File,
+        identity: RecordIdentity,
+        meta: CaptureMeta,
+        quality: PrecisionScanQuality?
+    ) {
+        File(dir, "record_identity.json").writeText(recordIdentityJson(null, identity, meta))
+        quality?.let { File(dir, "scan_quality.json").writeText(qualityJson(it)) }
+    }
+
+    private fun recordIdentityJson(
+        context: Context?,
+        identity: RecordIdentity,
+        meta: CaptureMeta
+    ): String {
+        return """{
+  "schema_version": 3,
+  "session_id": "${escape(identity.sessionId)}",
+  "putt_id": ${identity.puttId},
+  "scan_index": ${identity.scanIndex},
+  "scan_started_at_epoch_ms": ${identity.scanStartedAtEpochMs},
+  "scan_finished_at_epoch_ms": ${identity.scanFinishedAtEpochMs},
+  "app_version": "${escape(meta.appVersion)}",
+  "manufacturer": "${escape(Build.MANUFACTURER)}",
+  "model": "${escape(Build.MODEL)}",
+  "device": "${escape(Build.DEVICE)}",
+  "sdk_int": ${Build.VERSION.SDK_INT},
+  "arcore_depth_supported": ${meta.arCoreDepthSupported}
+}
+"""
+    }
+
+    private fun qualityJson(q: PrecisionScanQuality): String {
+        fun jf(v: Float): String = if (v.isFinite()) f(v) else "null"
+        val guidance = q.guidance.joinToString(prefix = "[", postfix = "]") {
+            "\"${escape(it)}\""
+        }
+        return """{
+  "score": ${q.score},
+  "tier": "${escape(q.tier)}",
+  "estimated_slope_uncertainty_percent": ${jf(q.estimatedSlopeUncertaintyPercent)},
+  "valid_window_count": ${q.validWindowCount},
+  "window_long_sd_percent": ${jf(q.windowLongStdDevPercent)},
+  "window_cross_sd_percent": ${jf(q.windowCrossStdDevPercent)},
+  "median_cell_mad_mm": ${jf(q.medianCellMadMm)},
+  "median_local_rmse_mm": ${jf(q.medianLocalRmseMm)},
+  "corridor_coverage": ${jf(q.corridorCoverage)},
+  "source_point_count": ${q.sourcePointCount},
+  "unique_depth_frames": ${q.uniqueDepthFrames},
+  "ground_cell_count": ${q.groundCellCount},
+  "candidate_cell_count": ${q.candidateCellCount},
+  "raw_accepted_frames": ${q.rawAcceptedFrames},
+  "full_accepted_frames": ${q.fullAcceptedFrames},
+  "duplicate_depth_frames": ${q.duplicateDepthFrames},
+  "tracking_ratio": ${jf(q.trackingRatio)},
+  "pose_jump_count": ${q.poseJumpCount},
+  "camera_travel_m": ${jf(q.cameraTravelMeters)},
+  "guidance": $guidance
+}"""
     }
 
     private fun saveModern(
@@ -99,6 +284,122 @@ object ScanFieldRecorder {
                 }
             }
         }
+    }
+
+    fun saveFailure(
+        context: Context,
+        precisionPoints: List<PrecisionDepthPoint>,
+        ball: Vec3?,
+        cup: Vec3?,
+        reason: String,
+        precisionDiagnostic: String,
+        markerDiagnostic: String,
+        collectorDiagnostic: String,
+        meta: CaptureMeta
+    ): String {
+        val id = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
+        val folder = "scan_${id}_FAILED"
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val rel = Environment.DIRECTORY_DOWNLOADS + "/$ROOT/$folder"
+            writeDownload(context, rel, "metadata.json", "application/json") { out ->
+                out.bufferedWriter().use {
+                    it.write(failureMetadataJson(ball, cup, reason, meta, precisionPoints.size))
+                }
+            }
+            savePrecisionExtrasModern(
+                context, folder, precisionPoints, precisionDiagnostic,
+                markerDiagnostic, collectorDiagnostic
+            )
+            "Download/$ROOT/$folder"
+        } else {
+            val dir = File(context.getExternalFilesDir(null), "$ROOT/$folder").apply { mkdirs() }
+            File(dir, "metadata.json").writeText(
+                failureMetadataJson(ball, cup, reason, meta, precisionPoints.size)
+            )
+            savePrecisionExtrasLegacy(
+                dir, precisionPoints, precisionDiagnostic,
+                markerDiagnostic, collectorDiagnostic
+            )
+            dir.absolutePath
+        }
+    }
+
+    private fun savePrecisionExtrasModern(
+        context: Context,
+        folder: String,
+        precisionPoints: List<PrecisionDepthPoint>,
+        precisionDiagnostic: String,
+        markerDiagnostic: String,
+        collectorDiagnostic: String
+    ) {
+        val rel = Environment.DIRECTORY_DOWNLOADS + "/$ROOT/$folder"
+        writeDownload(context, rel, "precision_depth_points.csv", "text/csv") { out ->
+            writePrecisionPoints(out, precisionPoints)
+        }
+        writeDownload(context, rel, "precision_diagnostics.txt", "text/plain") { out ->
+            out.bufferedWriter().use { it.write(precisionDiagnostic) }
+        }
+        writeDownload(context, rel, "marker_diagnostics.txt", "text/plain") { out ->
+            out.bufferedWriter().use { it.write(markerDiagnostic) }
+        }
+        writeDownload(context, rel, "collector_diagnostics.txt", "text/plain") { out ->
+            out.bufferedWriter().use { it.write(collectorDiagnostic) }
+        }
+    }
+
+    private fun savePrecisionExtrasLegacy(
+        dir: File,
+        precisionPoints: List<PrecisionDepthPoint>,
+        precisionDiagnostic: String,
+        markerDiagnostic: String,
+        collectorDiagnostic: String
+    ) {
+        File(dir, "precision_depth_points.csv").outputStream().use { out ->
+            writePrecisionPoints(out, precisionPoints)
+        }
+        File(dir, "precision_diagnostics.txt").writeText(precisionDiagnostic)
+        File(dir, "marker_diagnostics.txt").writeText(markerDiagnostic)
+        File(dir, "collector_diagnostics.txt").writeText(collectorDiagnostic)
+    }
+
+    private fun writePrecisionPoints(
+        out: java.io.OutputStream,
+        points: List<PrecisionDepthPoint>
+    ) {
+        out.bufferedWriter().use { w ->
+            w.write("index,x_m,y_m,z_m,confidence,frame_timestamp_ns\n")
+            points.forEachIndexed { i, p ->
+                w.write(
+                    "$i,${f(p.x)},${f(p.y)},${f(p.z)},${f(p.confidence)},${p.frameTimestampNs}\n"
+                )
+            }
+        }
+    }
+
+    private fun failureMetadataJson(
+        ball: Vec3?,
+        cup: Vec3?,
+        reason: String,
+        meta: CaptureMeta,
+        precisionPointCount: Int
+    ): String {
+        fun vecOrNull(v: Vec3?) = if (v == null) "null" else
+            "{\"x\":${f(v.x)},\"y\":${f(v.y)},\"z\":${f(v.z)}}"
+        fun arr(a: FloatArray) = a.joinToString(prefix = "[", postfix = "]") { f(it) }
+        return """{
+  \"schema_version\": 2,
+  \"outcome\": \"failure\",
+  \"reason\": \"${escape(reason)}\",
+  \"app_version\": \"${escape(meta.appVersion)}\",
+  \"tracking_state\": \"${escape(meta.trackingState)}\",
+  \"viewport\": {\"width\": ${meta.viewportWidth}, \"height\": ${meta.viewportHeight}},
+  \"camera_translation\": ${arr(meta.cameraTranslation)},
+  \"camera_quaternion\": ${arr(meta.cameraQuaternion)},
+  \"ball_world\": ${vecOrNull(ball)},
+  \"cup_world\": ${vecOrNull(cup)},
+  \"precision_point_count\": $precisionPointCount
+}
+"""
     }
 
     private fun writeDownload(
