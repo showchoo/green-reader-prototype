@@ -36,8 +36,8 @@ new_label = r'''    private fun updatePrecisionRecordLabel() {
             "測定信頼度 --"
         } else {
             val qualityLabel = when (q.tier) {
-                jp.example.greenreader.precision.PrecisionScanQuality.TIER_HIGH_PRECISION -> "高精度"
-                jp.example.greenreader.precision.PrecisionScanQuality.TIER_STANDARD -> "標準"
+                jp.example.greenreader.precision.PrecisionQualityEstimator.TIER_HIGH_PRECISION -> "高精度"
+                jp.example.greenreader.precision.PrecisionQualityEstimator.TIER_STANDARD -> "標準"
                 else -> "再測定推奨"
             }
             "測定信頼度 " + q.score + "/100  " + qualityLabel +
