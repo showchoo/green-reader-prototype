@@ -59,9 +59,20 @@ The resulting CSV contains one row per recorded scan. Useful fields:
 | `off_axis_angle_p95_deg` | angular off-axis extent of matched Depth points |
 | `pixel_inside_fraction` | fraction projecting inside the documented pixel basis |
 | `raw_rays`, `full_rays` | reconstructed ray samples by actual data source |
+| `same_voxel_view_pairs` | count of source-specific 5cm cells observed in both center and edge view groups with at least 2 distinct frames per group |
+| `edge_minus_center_height_median_mm` | median *observed height difference* for those same cells (edge − center), **not a correction** |
+| `view_comparison_status` | indicates whether at least 8 such cells permit a preliminary comparison |
 
 The projection is **a diagnostic consistency calculation**; it is not
 an additional observation of a true physical slope.
+
+A second observational check compares the same 5cm turf-position cells
+as seen with small (≤12°) versus large (≥20°) off-axis angles, separately
+for Raw and Full and using at least two distinct depth frames per group.
+The same-cell comparison reduces confounding from genuine *between-cell*
+green contours, but can still reflect different sub-cell samples, AR tracking
+drift, occlusion or source bias. It **never** adjusts displayed slopes or
+concludes that a camera is defective from a single scan.
 
 A `legacy_no_pose` status is expected for scans saved before v8.5.
 A `legacy_pose_no_view_axes` or `insufficient_geometry` status is
