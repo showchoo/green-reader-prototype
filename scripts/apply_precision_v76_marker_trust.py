@@ -140,7 +140,7 @@ helpers='''    private fun precisionMarkerGeometry():
             "  差=" + String.format(java.util.Locale.US, "%+.1f", (v.referenceErrorMeters ?: 0f) * 100f) + "cm"
         } ?: ""
         return "AR距離=" + distance + "m  高低差=" + deltaCm + "cm" + ref +
-            if (v.needsReview) "  ⚠位置を再確認" else "  （AR推定値）"
+            (if (v.needsReview) "  ⚠位置を再確認" else "  （AR推定値）")
     }
 
     private fun updatePrecisionMarkerGeometryLabel() {
