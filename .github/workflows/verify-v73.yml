@@ -1,0 +1,42 @@
+name: Verify Green Reader v7.3 M07 fixes
+
+on:
+  push:
+    branches:
+      - chatgpt-v73-m07-field-reliability
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate v7.3
+        run: python3 scripts/build_precision_v73.py
+      - name: Unit tests and compile
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Validate APK manifest
+        run: |
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep "versionCode='730'"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GreenReader-v7.3-unsigned-for-ci-only
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
