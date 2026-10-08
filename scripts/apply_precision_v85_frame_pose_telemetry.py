@@ -58,14 +58,48 @@ c=one(c,
             frameTimestamps += timestamp''',
 "accepted frames only")
 
-# Append telemetry ONLY to the saved collector diagnostic. Do not add
-# hundreds of CSV rows to the live HUD or scanner-quality computation.
-pat=r'(collectorDiagnostic\s*=\s*)precisionCollector\.diagnosticSummary\(\)'
-repl=r'\g<1>precisionCollector.diagnosticSummary() + "\\n" + precisionCollector.framePoseDiagnostics()'
+# Capture the telemetry BEFORE each short scan-window collector reset.
+# The app aggregates multiple collector windows into one persisted scan.
+s=one(s,
+'''    private val precisionTrackingMonitor =
+        jp.example.greenreader.precision.PrecisionTrackingMonitor()''',
+'''    private val precisionFramePoseWindows = ArrayList<String>(8)
+    private val precisionTrackingMonitor =
+        jp.example.greenreader.precision.PrecisionTrackingMonitor()''',
+"multi-window pose state")
+s=one(s,
+'''        precisionCollectorWindowSnapshots += precisionCollector.diagnosticSnapshot()''',
+'''        precisionCollectorWindowSnapshots += precisionCollector.diagnosticSnapshot()
+        precisionFramePoseWindows += precisionCollector.framePoseDiagnostics()''',
+"capture pose before each collector clear")
+s=one(s,
+'''    private fun precisionFieldCollectorSummary(): String {''',
+'''    private fun precisionFramePoseScanSummary(): String {
+        val poseSections = precisionFramePoseWindows.toMutableList()
+        val active = precisionCollector.framePoseDiagnostics()
+        if (!active.startsWith("FRAME_POSE_V1_BEGIN records=0 ")) {
+            poseSections += active
+        }
+        return poseSections.joinToString("\\n")
+    }
+
+    private fun precisionFieldCollectorSummary(): String {''',
+"aggregated pose helper")
+reset=re.compile(r'(?m)^([ \\t]*)precisionCollectorWindowSnapshots\\.clear\\(\\)$')
+s,reset_count=reset.subn(
+    lambda m:m.group(0)+"\\n"+m.group(1)+"precisionFramePoseWindows.clear()",s
+)
+if reset_count<1:
+    raise SystemExit("v8.5 expected window-snapshot reset sites")
+
+# Attach the aggregated short-window blocks only to the existing saved
+# collector_diagnostics.txt, not the live status or quality gates.
+pat=r'(collectorDiagnostic\\s*=\\s*)precisionFieldCollectorSummary\\(\\)'
+repl=r'\\g<1>precisionFieldCollectorSummary() + "\\\\n" + precisionFramePoseScanSummary()'
 s,n=re.subn(pat,repl,s)
-if n<2: raise SystemExit(f"v8.5 collectorDiagnostic persistence: found {n}, expected >=2")
-if s.count("precisionCollector.framePoseDiagnostics()") != n:
-    raise SystemExit("v8.5 failed to include pose log at all save paths")
+if n<2: raise SystemExit(f"v8.5 persisted collectorDiagnostic sites: got {n}, expected >=2")
+if s.count("precisionFramePoseScanSummary()") != n+1:
+    raise SystemExit("v8.5 pose diagnostics must appear only in save paths")
 if s.count("Precision 8.4")<2:raise SystemExit("v8.5 missing generated v8.4 app version labels")
 s=s.replace("Precision 8.4","Precision 8.5")
 g=one(g,'versionName = "8.4"','versionName = "8.5"',"version name")
