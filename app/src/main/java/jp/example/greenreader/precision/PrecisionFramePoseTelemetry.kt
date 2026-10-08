@@ -22,7 +22,26 @@ object PrecisionFramePoseTelemetry {
         val qx: Float,
         val qy: Float,
         val qz: Float,
-        val qw: Float
+        val qw: Float,
+        // Unit ray axes expressed in the same gravity-aligned, ball-relative
+        // frame as precision_depth_points.csv. These enable frame-relative
+        // off-axis geometry without assuming an ARCore world frame is fixed.
+        val forwardLocalX: Float = 0f,
+        val forwardLocalY: Float = 0f,
+        val forwardLocalZ: Float = -1f,
+        val rightLocalX: Float = 1f,
+        val rightLocalY: Float = 0f,
+        val rightLocalZ: Float = 0f,
+        // Intrinsics are expressed in the pixel coordinates named by basis.
+        // raw_texture_scaled = native Raw Depth pixel coordinates;
+        // cpu_image_pixels = transformed CPU image pixel coordinates for Full.
+        val projectionBasis: String = "unknown",
+        val projectionWidth: Int = 0,
+        val projectionHeight: Int = 0,
+        val focalX: Float = 0f,
+        val focalY: Float = 0f,
+        val principalX: Float = 0f,
+        val principalY: Float = 0f
     )
 
     class Buffer(private val maxRecords: Int = 256) {
@@ -41,7 +60,15 @@ object PrecisionFramePoseTelemetry {
         fun record(value: Entry) {
             if (value.source != "raw" && value.source != "full") return
             if (!listOf(value.x, value.y, value.z, value.qx, value.qy,
-                        value.qz, value.qw).all { it.isFinite() }) return
+                        value.qz, value.qw,
+                        value.forwardLocalX, value.forwardLocalY, value.forwardLocalZ,
+                        value.rightLocalX, value.rightLocalY, value.rightLocalZ,
+                        value.focalX, value.focalY, value.principalX, value.principalY)
+                    .all { it.isFinite() }) return
+            if (value.projectionBasis != "unknown" &&
+                (value.projectionBasis !in setOf("raw_texture_scaled", "cpu_image_pixels") ||
+                 value.projectionWidth <= 0 || value.projectionHeight <= 0 ||
+                 value.focalX <= 0f || value.focalY <= 0f)) return
             val key = value.depthTimestampNs to value.source
             if (records.containsKey(key)) return
             if (records.size >= maxRecords) {
@@ -58,7 +85,11 @@ object PrecisionFramePoseTelemetry {
                 .append(" dropped=").append(dropped).append('\n')
             append("depth_timestamp_ns,camera_frame_timestamp_ns,source,")
             append("camera_local_x_m,camera_local_y_m,camera_local_z_m,")
-            append("camera_world_qx,camera_world_qy,camera_world_qz,camera_world_qw")
+            append("camera_world_qx,camera_world_qy,camera_world_qz,camera_world_qw,")
+            append("camera_forward_local_x,camera_forward_local_y,camera_forward_local_z,")
+            append("camera_right_local_x,camera_right_local_y,camera_right_local_z,")
+            append("projection_basis,projection_width,projection_height,")
+            append("intrinsics_fx,intrinsics_fy,intrinsics_cx,intrinsics_cy")
                 .append('\n')
             fun format(v: Float) = String.format(Locale.US, "%.6f", v)
             for (v in records.values) {
@@ -71,7 +102,20 @@ object PrecisionFramePoseTelemetry {
                 append(format(v.qx)).append(',')
                 append(format(v.qy)).append(',')
                 append(format(v.qz)).append(',')
-                append(format(v.qw)).append('\n')
+                append(format(v.qw)).append(',')
+                append(format(v.forwardLocalX)).append(',')
+                append(format(v.forwardLocalY)).append(',')
+                append(format(v.forwardLocalZ)).append(',')
+                append(format(v.rightLocalX)).append(',')
+                append(format(v.rightLocalY)).append(',')
+                append(format(v.rightLocalZ)).append(',')
+                append(v.projectionBasis).append(',')
+                append(v.projectionWidth).append(',')
+                append(v.projectionHeight).append(',')
+                append(format(v.focalX)).append(',')
+                append(format(v.focalY)).append(',')
+                append(format(v.principalX)).append(',')
+                append(format(v.principalY)).append('\n')
             }
             append("FRAME_POSE_V1_END")
         }
