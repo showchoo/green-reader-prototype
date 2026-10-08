@@ -1,0 +1,48 @@
+name: Verify Green Reader v7.9 M07 fixes
+
+on:
+  push:
+    branches:
+      - chatgpt-v79-direction-safety
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate v7.9
+        run: python3 scripts/build_precision_v79.py
+      - name: Set up original upgrade-compatible signing
+        run: python3 scripts/prepare_existing_signing_v73.py
+      - name: Unit tests and compile
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Validate APK manifest
+        run: |
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep "versionCode='790'"
+          CERT="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+          echo "Signing cert SHA256: $CERT"
+          test "$CERT" = "2c06a12144ece069f117dc495c49a15e14108e61167ac9befddbfd4c60919fa0"
+          cp "$APK" GreenReaderPrecision-v7.9-v69-compatible.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GreenReaderPrecision-v7.9-v69-compatible-apk
+          path: GreenReaderPrecision-v7.9-v69-compatible.apk
+          if-no-files-found: error
+          retention-days: 30
