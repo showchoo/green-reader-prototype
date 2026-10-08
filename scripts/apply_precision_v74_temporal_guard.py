@@ -104,13 +104,13 @@ s=once(
 helper=r'''    private fun precisionTemporalSlopeCheck(): Pair<Boolean, String> {
         val usable = precisionWindowGlobalSlopes.filterNotNull()
         val series = precisionWindowGlobalSlopes.mapIndexed { index, slope ->
-            if (slope == null) "W\${index + 1}=NA" else
-                "W\${index + 1}=" +
+            if (slope == null) "W${index + 1}=NA" else
+                "W${index + 1}=" +
                     String.format(java.util.Locale.US, "%.2f/%.2f", slope.first, slope.second)
         }.joinToString(",")
         if (usable.size < 4) {
             return Pair(false,
-                "TEMPORAL insufficient global_windows=\${usable.size}/\${precisionWindowGlobalSlopes.size} series=[$series]")
+                "TEMPORAL insufficient global_windows=${usable.size}/${precisionWindowGlobalSlopes.size} series=[$series]")
         }
         fun median(values: List<Float>): Float {
             val sorted = values.sorted()
@@ -126,7 +126,7 @@ helper=r'''    private fun precisionTemporalSlopeCheck(): Pair<Boolean, String> 
         val disagreement = kotlin.math.sqrt(deltaLong * deltaLong + deltaCross * deltaCross)
         val unstable = !disagreement.isFinite() || disagreement > 2.5f
         return Pair(unstable,
-            "TEMPORAL global_windows=\${usable.size}/\${precisionWindowGlobalSlopes.size}" +
+            "TEMPORAL global_windows=${usable.size}/${precisionWindowGlobalSlopes.size}" +
                 " early_late_delta_pp=" +
                 String.format(java.util.Locale.US, "%.2f", disagreement) +
                 " state=" + (if (unstable) "UNSTABLE" else "STABLE") +
