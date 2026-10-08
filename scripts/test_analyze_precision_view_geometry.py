@@ -96,6 +96,42 @@ class ViewGeometryAuditTests(unittest.TestCase):
         self.assertEqual(1, x["pose_records"])
         self.assertEqual(16, x["matched_sampled_points"])
 
+    def test_shared_voxels_cancel_true_spatial_grade_in_view_comparison(self):
+        records = []
+        for cell in range(12):
+            base_height = cell * .008  # a truly sloping ground across cells
+            for frame in (10, 20):
+                records.append(("raw", cell, 0, 5.0, base_height, frame))
+            for frame in (30, 40):
+                records.append(("raw", cell, 0, 25.0, base_height, frame))
+        n, difference = analysis.matched_view_height_shift(records)
+        self.assertEqual(12, n)
+        self.assertAlmostEqual(0.0, difference, places=5)
+
+    def test_view_dependent_same_voxel_height_disagreement_is_diagnostic(self):
+        records = []
+        for cell in range(12):
+            base_height = cell * .01
+            for frame in (10, 20):
+                records.append(("full", cell, 0, 5.0, base_height, frame))
+            for frame in (30, 40):
+                records.append(("full", cell, 0, 27.0, base_height + .025, frame))
+        n, difference = analysis.matched_view_height_shift(records)
+        self.assertEqual(12, n)
+        self.assertAlmostEqual(25.0, difference, places=4)
+
+    def test_no_common_voxel_or_no_distinct_frames_stays_inconclusive(self):
+        records = [
+            ("raw", 0, 0, 5., 0.0, 10),
+            ("raw", 0, 0, 26., .03, 30),
+            ("raw", 0, 0, 26., .03, 30),  # repeated pixel, NOT 2 frames
+            ("raw", 1, 0, 5., 0.0, 10),
+            ("raw", 2, 0, 26., .03, 30)
+        ]
+        n, diff = analysis.matched_view_height_shift(records)
+        self.assertEqual(0, n)
+        self.assertIsNone(diff)
+
     def test_zip_replay_does_not_need_camera_photo(self):
         diag, points, sources = sample_record()
         with tempfile.TemporaryDirectory() as tmp:
