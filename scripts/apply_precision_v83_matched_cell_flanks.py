@@ -94,19 +94,16 @@ a = one(a,
         val matchedCellPairs: Int = 0
 """, "pair count field")
 a = one(a,
-"""                " forwardMismatch=" + forwardMismatchSlices +
-                " pairedCross="""",
-"""                " forwardMismatch=" + forwardMismatchSlices +
-                " matchedPairs=" + matchedCellPairs +
-                " pairedCross="""", "pair count diagnostics")
-a = one(a,
-"""                opposing, m, alongMismatchedSlices)""",
-"""                opposing, m, alongMismatchedSlices, pairedCells)""",
-"insufficient coverage count")
-a = one(a,
-"""                opposing, m, alongMismatchedSlices)""",
-"""                opposing, m, alongMismatchedSlices, pairedCells)""",
-"opposite direction count")
+'                " forwardMismatch=" + forwardMismatchSlices +\\n',
+'                " forwardMismatch=" + forwardMismatchSlices +\\n'
+'                " matchedPairs=" + matchedCellPairs +\\n',
+"pair count diagnostics")
+if a.count("                opposing, m, alongMismatchedSlices)") != 2:
+    raise SystemExit("v8.3 expected two paired-coverage verdict returns")
+a = a.replace(
+    "                opposing, m, alongMismatchedSlices)",
+    "                opposing, m, alongMismatchedSlices, pairedCells)"
+)
 a = one(a,
 """            false, verified, slopes.size, opposing, m, alongMismatchedSlices
 """,
