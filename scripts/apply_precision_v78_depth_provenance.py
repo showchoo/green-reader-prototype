@@ -82,7 +82,7 @@ helper=r'''    private fun writePrecisionSources(
 r=one(r,anchor,helper+anchor,"source file writer")
 # Preserve old CSV header byte-for-byte for offline replay compatibility.
 assert 'w.write("index,x_m,y_m,z_m,confidence,frame_timestamp_ns\\n")' in r
-assert "val depthSource: String = \\"unknown\\"" in m
+assert 'val depthSource: String = "unknown"' in m
 assert 'depthSource' in r
 
 if "Precision 7.7" not in s:raise SystemExit("v7.7 must precede v7.8")
