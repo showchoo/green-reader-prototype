@@ -110,7 +110,10 @@ a = one(a,
 """            false, verified, slopes.size, opposing, m, alongMismatchedSlices, pairedCells
 """, "agreement count")
 
-s = one(s, 'appVersion = "Precision 8.2"', 'appVersion = "Precision 8.3"', "app version")
+# The UI label and the persisted scan metadata each contain this version.
+if s.count('appVersion = "Precision 8.2"') != 2:
+    raise SystemExit("v8.3 expected two 8.2 application-version labels")
+s = s.replace('appVersion = "Precision 8.2"', 'appVersion = "Precision 8.3"')
 g = one(g, 'versionName = "8.2"', 'versionName = "8.3"', "gradle name")
 g = one(g, 'versionCode = 820', 'versionCode = 830', "gradle code")
 assert "MAX_ALONG_SIDE_MISMATCH_M = 0.015f" in a
