@@ -94,9 +94,9 @@ a = one(a,
         val matchedCellPairs: Int = 0
 """, "pair count field")
 a = one(a,
-'                " forwardMismatch=" + forwardMismatchSlices +\\n',
-'                " forwardMismatch=" + forwardMismatchSlices +\\n'
-'                " matchedPairs=" + matchedCellPairs +\\n',
+'                " forwardMismatch=" + forwardMismatchSlices +\n',
+'                " forwardMismatch=" + forwardMismatchSlices +\n'
+'                " matchedPairs=" + matchedCellPairs +\n',
 "pair count diagnostics")
 if a.count("                opposing, m, alongMismatchedSlices)") != 2:
     raise SystemExit("v8.3 expected two paired-coverage verdict returns")
