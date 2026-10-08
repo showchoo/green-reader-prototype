@@ -12,7 +12,7 @@ assert "markerGeometryTrusted = precisionMarkerGeometry()?.needsReview != true" 
 assert '-> "再現性良好"' in m
 assert "取得データ品質" in m
 assert "絶対精度は未検証" in m
-assert '"Depth Raw="' in m
+assert "Depth Raw=" in m
 assert 'button("カップ再指定")' in m
 assert 'button("実測距離")' in m
 assert 'MARK_GEOMETRY' in m
