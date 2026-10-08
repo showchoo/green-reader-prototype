@@ -196,9 +196,13 @@ def analyze_scan(name, diag, points, sources, sample_step=8):
     source_map = _parse_sources(sources) if sources else {}
     ages, heights, pitch, positions = [], [], [], []
     for (timestamp, _), pose in poses.items():
-        frame = getnum(pose, "camera_frame_timestamp_ns")
-        if frame is not None:
-            ages.append((frame - timestamp) / 1e6)  # signed milliseconds
+        try:
+            # Keep nanosecond timestamps as integers to avoid float rounding
+            # when the monotonic clock's absolute value grows large.
+            frame_ns = int(pose["camera_frame_timestamp_ns"])
+            ages.append((frame_ns - timestamp) / 1e6)  # signed milliseconds
+        except (KeyError, ValueError, TypeError):
+            pass
         xyz = [getnum(pose, c) for c in (
             "camera_local_x_m", "camera_local_y_m", "camera_local_z_m")]
         if all(v is not None for v in xyz):
