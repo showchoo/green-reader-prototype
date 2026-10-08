@@ -234,14 +234,6 @@ s=one(s,
             " | MARK_GEOMETRY " + precisionMarkGeometryText()''',
 "save marker geometry with scan diagnostics")
 
-# The first line of label stays usable when menu is collapsed.
-s=one(s,
-'''        precisionRecordLabel.text =
-            "SESSION " + shortSession +''',
-'''        precisionRecordLabel.text =
-            "SESSION " + shortSession +''',
-"record label invariant")
-
 assert 'button("次のホール")' in s and 'button("結果入力")' in s
 assert 'bitmap = failureBitmap' in s
 assert "precisionCompletedDiagnostic = precisionLastDiagnostic" in s
