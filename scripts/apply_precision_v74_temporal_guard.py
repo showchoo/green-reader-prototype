@@ -101,39 +101,8 @@ s=once(
 ''',
 "record each window global",s)
 
-helper=r'''    private fun precisionTemporalSlopeCheck(): Pair<Boolean, String> {
-        val usable = precisionWindowGlobalSlopes.filterNotNull()
-        val series = precisionWindowGlobalSlopes.mapIndexed { index, slope ->
-            if (slope == null) "W${index + 1}=NA" else
-                "W${index + 1}=" +
-                    String.format(java.util.Locale.US, "%.2f/%.2f", slope.first, slope.second)
-        }.joinToString(",")
-        if (usable.size < 4) {
-            return Pair(false,
-                "TEMPORAL insufficient global_windows=${usable.size}/${precisionWindowGlobalSlopes.size} series=[$series]")
-        }
-        fun median(values: List<Float>): Float {
-            val sorted = values.sorted()
-            val index = sorted.size / 2
-            return if (sorted.size % 2 == 1) sorted[index]
-                else (sorted[index - 1] + sorted[index]) / 2f
-        }
-        val splitAt = usable.size / 2
-        val early = usable.subList(0, splitAt)
-        val late = usable.subList(splitAt, usable.size)
-        val deltaLong = median(early.map { it.first }) - median(late.map { it.first })
-        val deltaCross = median(early.map { it.second }) - median(late.map { it.second })
-        val disagreement = kotlin.math.sqrt(deltaLong * deltaLong + deltaCross * deltaCross)
-        val unstable = !disagreement.isFinite() || disagreement > 2.5f
-        return Pair(unstable,
-            "TEMPORAL global_windows=${usable.size}/${precisionWindowGlobalSlopes.size}" +
-                " early_late_delta_pp=" +
-                String.format(java.util.Locale.US, "%.2f", disagreement) +
-                " state=" + (if (unstable) "UNSTABLE" else "STABLE") +
-                " series=[$series]")
-    }
+helper = ""
 
-'''
 marker="    private fun updatePrecisionRecordLabel() {"
 if s.count(marker)!=1:raise SystemExit("v7.4 temporal helper insertion point missing")
 s=s.replace(marker,helper+marker,1)
@@ -144,11 +113,11 @@ s=once(
 
         precisionCurrentQuality =''',
 '''        var combined = aggregateReport ?: SlopeConsensus.combine(consensusReports, minAgree = 4)
-        val temporalResult = precisionTemporalSlopeCheck()
-        val precisionTemporalUnstable = combined != null && temporalResult.first
+        val temporalResult = jp.example.greenreader.precision.PrecisionTemporalConsistency.evaluate(precisionWindowGlobalSlopes)
+        val precisionTemporalUnstable = combined != null && temporalResult.unstable
         if (precisionTemporalUnstable) combined = null
         consensusReport = combined
-        precisionLastDiagnostic += " | " + temporalResult.second +
+        precisionLastDiagnostic += " | " + temporalResult.diagnostic +
             " | RESERVOIR seen=" + precisionLogPointsSeen +
             " saved=" + precisionLogPoints.size
 
@@ -175,6 +144,73 @@ if 'Precision 7.3' not in s:raise SystemExit("v7.4 source version target missing
 s=s.replace("Precision 7.3","Precision 7.4")
 g=once('versionName = "7.3"','versionName = "7.4"',"version name",g)
 g=once('versionCode = 730','versionCode = 740',"version code",g)
+
+temporal_path=Path("app/src/main/java/jp/example/greenreader/precision/PrecisionTemporalConsistency.kt")
+temporal_path.write_text(r'''package jp.example.greenreader.precision
+
+import kotlin.math.sqrt
+
+/**
+ * Cheap sanity check on independent window-wide planes.
+ * This is NOT an accuracy estimate or a calibrated confidence interval.
+ * Requires four fitted windows, otherwise marks stability as unverified.
+ */
+object PrecisionTemporalConsistency {
+    data class Result(
+        val unstable: Boolean,
+        val verified: Boolean,
+        val disagreementPp: Float,
+        val validWindows: Int,
+        val diagnostic: String
+    )
+
+    fun evaluate(
+        windows: List<Pair<Float, Float>?>,
+        thresholdPp: Float = 2.5f
+    ): Result {
+        val values = windows.filterNotNull().filter {
+            it.first.isFinite() && it.second.isFinite()
+        }
+        val series = windows.mapIndexed { index, slope ->
+            if (slope == null || !slope.first.isFinite() || !slope.second.isFinite()) {
+                "W" + (index + 1) + "=NA"
+            } else {
+                "W" + (index + 1) + "=" +
+                    String.format(java.util.Locale.US, "%.2f/%.2f", slope.first, slope.second)
+            }
+        }.joinToString(",")
+        if (values.size < 4) {
+            return Result(false, false, Float.NaN, values.size,
+                "TEMPORAL insufficient global_windows=" + values.size + "/" + windows.size +
+                    " series=[" + series + "]")
+        }
+        fun median(list: List<Float>): Float {
+            val sorted = list.sorted()
+            val at = sorted.size / 2
+            return if (sorted.size % 2 == 1) sorted[at]
+                else (sorted[at - 1] + sorted[at]) / 2f
+        }
+        val mid = values.size / 2
+        val early = values.subList(0, mid)
+        val late = values.subList(mid, values.size)
+        val longitudinal = median(early.map { it.first }) - median(late.map { it.first })
+        val cross = median(early.map { it.second }) - median(late.map { it.second })
+        val disagreement = sqrt(longitudinal * longitudinal + cross * cross)
+        val unstable = !disagreement.isFinite() || disagreement > thresholdPp
+        return Result(
+            unstable = unstable,
+            verified = true,
+            disagreementPp = disagreement,
+            validWindows = values.size,
+            diagnostic = "TEMPORAL global_windows=" + values.size + "/" + windows.size +
+                " early_late_delta_pp=" +
+                String.format(java.util.Locale.US, "%.2f", disagreement) +
+                " state=" + (if (unstable) "UNSTABLE" else "STABLE") +
+                " series=[" + series + "]"
+        )
+    }
+}
+''',encoding="utf-8")
 
 main_path.write_text(s,encoding="utf-8")
 analyzer_path.write_text(a,encoding="utf-8")
