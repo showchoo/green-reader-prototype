@@ -76,7 +76,8 @@ a=one(a,
         )''',
 "carry rejection audit to agreement diagnostics")
 # Surface-fit and downstream PuttAdvisor are unchanged.
-s=one(s,"Precision 8.1","Precision 8.2","app metadata")
+if "Precision 8.1" not in s: raise SystemExit("v8.2 requires v8.1")
+s=s.replace("Precision 8.1","Precision 8.2")
 g=one(g,'versionName = "8.1"','versionName = "8.2"',"version name")
 g=one(g,'versionCode = 810','versionCode = 820',"version code")
 assert "MAX_USABLE_SLOPE_PERCENT = 12f" in (root/"precision/PrecisionSlopeAnalyzer.kt").read_text()
