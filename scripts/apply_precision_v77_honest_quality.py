@@ -50,8 +50,8 @@ s=one(s,
 s=s.replace("測定信頼度", "取得データ品質")
 if "取得データ品質" not in s:raise SystemExit("Data quality label missing after change")
 s=one(s,
-'''                "\n推定ばらつき ±" + String.format("%.2f", q.estimatedSlopeUncertaintyPercent) + "%（参考値）"''',
-'''                "\n推定ばらつき ±" + String.format("%.2f", q.estimatedSlopeUncertaintyPercent) + "%（参考値）" +
+r'''                "\n推定ばらつき ±" + String.format("%.2f", q.estimatedSlopeUncertaintyPercent) + "%（参考値）"''',
+r'''                "\n推定ばらつき ±" + String.format("%.2f", q.estimatedSlopeUncertaintyPercent) + "%（参考値）" +
                 "\nDepth Raw=" + q.rawAcceptedFrames + " Full=" + q.fullAcceptedFrames +
                 " / 絶対精度は未検証"''',
 "show depth source mix and uncertainty disclosure")
