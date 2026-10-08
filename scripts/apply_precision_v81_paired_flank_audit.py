@@ -56,7 +56,7 @@ object PrecisionPairedFlankAudit {
     private const val SIGNIFICANT_CROSS_PP = 1.2f
     private const val MIN_LATERAL_SEPARATION_M = 0.24f
 
-    private data class Sample(val lateral: Float, val height: Float)
+    private data class Sample(val along: Float, val lateral: Float, val height: Float)
 
     private fun median(values: List<Float>): Float {
         val sorted = values.sorted()
@@ -97,7 +97,7 @@ object PrecisionPairedFlankAudit {
             val lateral = x * rx + z * rz
             if (!lateral.isFinite() || !cell.height.isFinite()) continue
             val bucket = ((along / d) * SLICES).toInt().coerceIn(0, SLICES - 1)
-            val sample = Sample(lateral, cell.height)
+            val sample = Sample(along, lateral, cell.height)
             when {
                 lateral in -0.55f..-0.14f -> left[bucket].add(sample)
                 lateral in 0.14f..0.55f -> right[bucket].add(sample)
@@ -111,6 +111,12 @@ object PrecisionPairedFlankAudit {
             val l = left[i]
             val r = right[i]
             if (l.size < MIN_CELLS_PER_SIDE || r.size < MIN_CELLS_PER_SIDE) continue
+            // A forward-height gradient can mimic sideways grade if left
+            // and right were observed at different distances along the
+            // putt. Refuse that non-matched comparison.
+            val ds = abs(median(l.map { it.along }) -
+                median(r.map { it.along }))
+            if (ds > 0.05f) continue
             val dl = median(l.map { it.lateral })
             val dr = median(r.map { it.lateral })
             val gap = dr - dl
