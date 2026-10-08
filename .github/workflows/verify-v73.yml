@@ -27,6 +27,8 @@ jobs:
           gradle-version: '8.9'
       - name: Generate v7.3
         run: python3 scripts/build_precision_v73.py
+      - name: Set up original upgrade-compatible signing
+        run: python3 scripts/prepare_existing_signing_v73.py
       - name: Unit tests and compile
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
       - name: Validate APK manifest
@@ -34,9 +36,13 @@ jobs:
           APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)"
           test -n "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep "versionCode='730'"
+          CERT="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+          echo "Signing cert SHA256: $CERT"
+          test "$CERT" = "2c06a12144ece069f117dc495c49a15e14108e61167ac9befddbfd4c60919fa0"
+          cp "$APK" GreenReaderPrecision-v7.3-v69-compatible.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: GreenReader-v7.3-unsigned-for-ci-only
-          path: app/build/outputs/apk/debug/*.apk
+          name: GreenReaderPrecision-v7.3-v69-compatible-apk
+          path: GreenReaderPrecision-v7.3-v69-compatible.apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
