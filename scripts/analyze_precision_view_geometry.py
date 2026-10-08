@@ -11,6 +11,7 @@ Usage:
       --output /tmp/greenreader_view_geometry.csv
 """
 import argparse
+from collections import defaultdict
 import csv
 import io
 import math
@@ -29,7 +30,9 @@ CSV_COLUMNS = [
     "camera_span_m", "camera_height_median", "camera_pitch_down_median_deg",
     "camera_pitch_span_deg", "depth_age_median_ms", "depth_age_p95_ms",
     "axial_range_median_m", "off_axis_angle_median_deg",
-    "off_axis_angle_p95_deg", "raw_rays", "full_rays"
+    "off_axis_angle_p95_deg", "raw_rays", "full_rays",
+    "same_voxel_view_pairs", "edge_minus_center_height_median_mm",
+    "view_comparison_status"
 ]
 
 
@@ -140,6 +143,45 @@ def _parse_sources(text):
     return rows
 
 
+def matched_view_height_shift(samples):
+    """Compare CENTER vs EDGE views of the SAME (source, 5cm XY-ground voxel).
+
+    Samples contain (source, x_voxel, z_voxel, offaxis_deg, local_height_m,
+    frame_timestamp). Require >=2 distinct frames per viewpoint group so
+    multiple pixels in one frame cannot fabricate temporal replication.
+
+    These comparisons remove much *spatial* green slope confounding but
+    may still reflect AR tracking drift, occlusion or sample selection.
+    The number is a research diagnostic, NOT a slope correction.
+    """
+    groups = defaultdict(lambda: {"center": defaultdict(list),
+                                  "edge": defaultdict(list)})
+    for source, ix, iz, angle, height, timestamp in samples:
+        if not math.isfinite(height):
+            continue
+        view = "center" if angle <= 12. else "edge" if angle >= 20. else None
+        if view is None:
+            continue
+        groups[source, ix, iz][view][timestamp].append(height)
+    differences = []
+    for grouped in groups.values():
+        center_frames = grouped["center"]
+        edge_frames = grouped["edge"]
+        if len(center_frames) < 2 or len(edge_frames) < 2:
+            continue
+        center = [statistics.median(heights) for heights in center_frames.values()]
+        edge = [statistics.median(heights) for heights in edge_frames.values()]
+        medc = statistics.median(center)
+        mede = statistics.median(edge)
+        # A cell that jumps around across frames is not a stable reference.
+        madc = statistics.median(abs(h-medc) for h in center)
+        made = statistics.median(abs(h-mede) for h in edge)
+        if madc > 0.025 or made > 0.025:
+            continue
+        differences.append((mede - medc)*1000.)
+    return len(differences), (statistics.median(differences) if differences else None)
+
+
 def analyze_scan(name, diag, points, sources, sample_step=8):
     out = {col: "" for col in CSV_COLUMNS}
     out["scan"] = name
@@ -179,7 +221,7 @@ def analyze_scan(name, diag, points, sources, sample_step=8):
         out["status"] = "pose_without_source_sidecar"
         return out
     matched, sampled, rays, inside = 0, 0, 0, 0
-    ranges, angles = [], []
+    ranges, angles, repeated_view_samples = [], [], []
     rays_by_source = {"raw": 0, "full": 0}
     for rownum, row in enumerate(csv.DictReader(io.StringIO(points))):
         if rownum % sample_step != 0:
@@ -202,6 +244,10 @@ def analyze_scan(name, diag, points, sources, sample_step=8):
         depth, angle, is_inside = ray
         ranges.append(depth)
         angles.append(angle)
+        repeated_view_samples.append((
+            key[1], math.floor(x / .05), math.floor(z / .05),
+            angle, y, key[0]
+        ))
         rays += 1
         inside += is_inside
         rays_by_source[key[1]] += 1
@@ -215,6 +261,13 @@ def analyze_scan(name, diag, points, sources, sample_step=8):
     out["off_axis_angle_p95_deg"] = rounded(pct(angles, .95))
     out["raw_rays"] = rays_by_source["raw"]
     out["full_rays"] = rays_by_source["full"]
+    shared_voxels, view_shift = matched_view_height_shift(repeated_view_samples)
+    out["same_voxel_view_pairs"] = shared_voxels
+    out["edge_minus_center_height_median_mm"] = rounded(view_shift)
+    out["view_comparison_status"] = (
+        "comparable_view_groups" if shared_voxels >= 8
+        else "insufficient_shared_voxels"
+    )
     out["status"] = (
         "geometry_ready" if rays >= 20 and matched >= 20
         else "insufficient_geometry" if rays == 0 else "low_geometry_coverage"
