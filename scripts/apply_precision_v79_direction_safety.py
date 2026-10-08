@@ -21,16 +21,12 @@ def one(text,old,new,label):
     if n!=1: raise SystemExit("v7.9 "+label+": wanted exactly one target, found "+str(n))
     return text.replace(old,new,1)
 
-# The point cloud is in GravityAlignedFrame (translation + yaw ONLY).
-# The legacy display projected the FULL Pose (pitch/roll included) for +t,
-# which can be an inconsistent basis and reverse a displayed break.
-s=one(s,
-'''        val midWorldRaw = referencePose.transformPoint(midLocal)
-        val sideWorldRaw = referencePose.transformPoint(sideLocal)''',
-'''        val levelFrame = GravityAlignedFrame.fromPose(referencePose)
-        val midWorldRaw = levelFrame.localToWorld(midLocal)
-        val sideWorldRaw = levelFrame.localToWorld(sideLocal)''',
-"gravity-aligned screen projection")
+# v1.4 already fixed the anchor-pitch/roll mismatch. Check that
+# existing fix remains, rather than introducing a speculative second flip.
+assert 'val levelFrame = GravityAlignedFrame.fromPose(referencePose)' in s
+assert 'val midWorldRaw = levelFrame.localToWorld(midLocal)' in s
+assert 'val sideWorldRaw = levelFrame.localToWorld(sideLocal)' in s
+assert 'referencePose.transformPoint(midLocal)' not in s
 
 s=one(s,
 '''    private val precisionWindowGlobalSlopes = ArrayList<Pair<Float, Float>?>(8)''',
