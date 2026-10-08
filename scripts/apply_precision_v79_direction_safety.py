@@ -119,20 +119,13 @@ replacement='''        canvas.drawRect(imageRect, dimPaint)
         fun mapPoint(p: PointF) = PointF(left + p.x * scale, top + p.y * scale)''';
 o=one(o,needle,replacement,"no arbitrary break when projection absent")
 # The fallback used a screen-side convention unrelated to fitted +t.
-o=one(o,
-'''        val nx = projectedCross?.x ?: uy
-        val ny = projectedCross?.y ?: -ux''',
-'''        val nx = projectedCross!!.x
-        val ny = projectedCross.y''',
-"verified cross basis in drawing")
-# DrawSlopeVectors has a separate basis; keep it same as path and only run
-# when the directionVerified check above passed.
-o=one(o,
-'''        val nx = projectedCross?.x ?: uy
-        val ny = projectedCross?.y ?: -ux''',
-'''        val nx = projectedCross!!.x
-        val ny = projectedCross.y''',
-"verified downhill vectors")
+old_basis = """        val nx = projectedCross?.x ?: uy
+        val ny = projectedCross?.y ?: -ux"""
+new_basis = """        val nx = projectedCross!!.x
+        val ny = projectedCross.y"""
+if o.count(old_basis) != 2:
+    raise SystemExit("v7.9 requires exactly two camera overlay cross bases")
+o = o.replace(old_basis, new_basis)
 
 v=one(v,
 '''    var report: SlopeReport? = null
