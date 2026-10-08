@@ -3,7 +3,7 @@ name: Verify Green Reader v7.4 M07 fixes
 on:
   push:
     branches:
-      - chatgpt-v74-m07-field-reliability
+      - chatgpt-v74-temporal-quality
   workflow_dispatch:
 
 permissions:
@@ -28,7 +28,7 @@ jobs:
       - name: Generate v7.4
         run: python3 scripts/build_precision_v74.py
       - name: Set up original upgrade-compatible signing
-        run: python3 scripts/prepare_existing_signing_v74.py
+        run: python3 scripts/prepare_existing_signing_v73.py
       - name: Unit tests and compile
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
       - name: Validate APK manifest
