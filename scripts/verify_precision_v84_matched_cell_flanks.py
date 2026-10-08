@@ -7,7 +7,7 @@ audit = (root / "precision/PrecisionPairedFlankAudit.kt").read_text(encoding="ut
 recorder = (root / "field/ScanFieldRecorder.kt").read_text(encoding="utf8")
 gradle = Path("app/build.gradle.kts").read_text(encoding="utf8")
 assert 'versionName = "8.4"' in gradle and 'versionCode = 840' in gradle
-assert 'appVersion = "Precision 8.3"' in main
+assert 'appVersion = "Precision 8.4"' in main
 assert 'MAX_ALONG_SIDE_MISMATCH_M = 0.015f' in audit
 assert 'val orderedLeft = l.sortedBy { it.along }' in audit
 assert 'val orderedRight = r.sortedBy { it.along }' in audit
