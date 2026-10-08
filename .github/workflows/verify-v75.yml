@@ -3,7 +3,7 @@ name: Verify Green Reader v7.5 M07 fixes
 on:
   push:
     branches:
-      - chatgpt-v75-temporal-quality
+      - chatgpt-v75-quality-calibration
   workflow_dispatch:
 
 permissions:
