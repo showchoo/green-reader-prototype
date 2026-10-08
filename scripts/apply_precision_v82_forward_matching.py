@@ -45,6 +45,36 @@ a=one(a,
 '''        val m = if (slopes.isNotEmpty()) median(slopes) else null
         if (slopes.size < MIN_VALID_SLICES) {''',
 "preserve no-overclaim behavior")
+a=one(a,
+'''        val medianPairedCrossPercent: Float?
+    ) {''',
+'''        val medianPairedCrossPercent: Float?,
+        val forwardMismatchSlices: Int = 0
+    ) {''',
+"expose rejected alignment slices")
+a=one(a,
+'''                " opposite=" + opposingSlices +
+                " pairedCross="''',
+'''                " opposite=" + opposingSlices +
+                " forwardMismatch=" + forwardMismatchSlices +
+                " pairedCross="''',
+"diagnostic forward mismatch count")
+a=one(a,
+'''            return Verdict("INSUFFICIENT_PAIRED_COVERAGE", false, false, slopes.size, opposing, m)''',
+'''            return Verdict("INSUFFICIENT_PAIRED_COVERAGE", false, false, slopes.size,
+                opposing, m, alongMismatchedSlices)''',
+"explain incomplete coverage")
+a=one(a,
+'''            return Verdict("OPPOSITE_PAIRED_HEIGHTS", true, false, slopes.size, opposing, m)''',
+'''            return Verdict("OPPOSITE_PAIRED_HEIGHTS", true, false, slopes.size,
+                opposing, m, alongMismatchedSlices)''',
+"carry rejection audit to veto diagnostics")
+a=one(a,
+'''            false, verified, slopes.size, opposing, m
+        )''',
+'''            false, verified, slopes.size, opposing, m, alongMismatchedSlices
+        )''',
+"carry rejection audit to agreement diagnostics")
 # Surface-fit and downstream PuttAdvisor are unchanged.
 s=one(s,"Precision 8.1","Precision 8.2","app metadata")
 g=one(g,'versionName = "8.1"','versionName = "8.2"',"version name")
