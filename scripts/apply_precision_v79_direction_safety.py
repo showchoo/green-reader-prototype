@@ -55,13 +55,11 @@ s=one(s,
 
 # Never show a directional map when sign agreement was not verified.
 # Keep the report for saving, quality analysis and future offline replay.
-s=one(s,
-'''        mapView.report = report
-''',
-'''        mapView.report = report
-        mapView.directionVerified = precisionDirectionTrustworthy
-''',
-"top-down verification flag")
+map_assign = "        mapView.report = report\n"
+if s.count(map_assign) != 2:
+    raise SystemExit("v7.9 expected two map display assignments")
+s = s.replace(map_assign,
+    map_assign + "        mapView.directionVerified = precisionDirectionTrustworthy\n")
 
 # Overlay API has always accepted the anchor-relative +t projection.
 s=one(s,
