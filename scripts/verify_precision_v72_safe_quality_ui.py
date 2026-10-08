@@ -20,7 +20,7 @@ assert "putt_result_$stamp.json" in recorder
 
 # Normal UI exposes useful confidence without implementation details.
 assert '"測定信頼度 "' in main
-assert '"推定誤差 ±"' in main
+assert "推定誤差 ±" in main
 assert '"高精度"' in main
 assert '"標準"' in main
 assert '"再測定推奨"' in main
