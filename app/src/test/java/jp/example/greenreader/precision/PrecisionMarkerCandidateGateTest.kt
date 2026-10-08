@@ -14,7 +14,7 @@ class PrecisionMarkerCandidateGateTest {
         assertEquals("vertical-mismatch", result.reason)
         assertEquals(0.098f, result.horizontal!!, 0.001f)
         assertEquals(0.290f, result.vertical!!, 0.001f)
-        assertEquals(0.080f, result.limit!!, 0.00001f)
+        assertEquals(0.060f, result.limit!!, 0.00001f)
         assertFalse(result.accepted)
         val ground = Vec3(-0.044f, ball.y - 0.04f, -2.1f)
         assertTrue(PrecisionMarkerCandidateGate.evaluate(camera, ground, ball).accepted)
@@ -32,8 +32,8 @@ class PrecisionMarkerCandidateGateTest {
 
     @Test fun pairGateIsSymmetricAndRejectsNonfiniteInputs() {
         val ball = Vec3(0f, -0.5f, -1f)
-        assertTrue(PrecisionMarkerCandidateGate.evaluate(camera, Vec3(0f, -0.35f, -2f), ball).accepted)
-        assertTrue(PrecisionMarkerCandidateGate.evaluate(camera, Vec3(0f, -0.65f, -2f), ball).accepted)
+        assertTrue(PrecisionMarkerCandidateGate.evaluate(camera, Vec3(0f, -0.39f, -2f), ball).accepted)
+        assertTrue(PrecisionMarkerCandidateGate.evaluate(camera, Vec3(0f, -0.61f, -2f), ball).accepted)
         assertFalse(PrecisionMarkerCandidateGate.evaluate(camera, Vec3(0f, -0.33f, -2f), ball).accepted)
         assertFalse(PrecisionMarkerCandidateGate.evaluate(camera, Vec3(Float.NaN, 0f, -1f), ball).accepted)
         assertFalse(PrecisionMarkerCandidateGate.evaluate(camera, ball, Vec3(0f, Float.NaN, -1f)).accepted)
@@ -59,7 +59,7 @@ class PrecisionMarkerCandidateGateTest {
         assertTrue(result.cameraDistance > 4f)
         assertEquals(2.96f, result.horizontal!!, 0.02f)
         assertEquals(0.210f, result.vertical!!, 0.01f)
-        assertEquals(0.395f, result.limit!!, 0.01f)
+        assertEquals(0.365f, result.limit!!, 0.01f)
     }
 
     @Test fun distantCupStillRejectsImplausibleHeight() {
