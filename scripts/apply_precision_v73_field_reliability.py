@@ -87,7 +87,7 @@ s = replace_one(
 )
 
 # One assignment per scan resets stale success/failure status and snapshots.
-pattern = re.compile(r"(?m)^(\s*)precisionCurrentQuality = null$")
+pattern = re.compile(r"(?m)^([ \t]*)precisionCurrentQuality = null$")
 s, reset_count = pattern.subn(
     lambda m: m.group(0) + "\n" + m.group(1) +
               'precisionCompletedDiagnostic = ""' + "\n" + m.group(1) +
