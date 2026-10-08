@@ -208,7 +208,7 @@ assert 'button("次のホール")' in s
 assert 'bitmap = failureBitmap' in s
 assert "MAX_USABLE_SLOPE_PERCENT = 12f" in a
 assert "MAX_LOCAL_RMSE_METERS = 0.040" in a
-assert '\"schema_version\"' not in r[r.index('private fun metadataJson('):r.index('private fun f(v: Float)')].split('return """{')[1].split('"""')[0]
+assert '  "schema_version":' in r
 
 main_path.write_text(s, encoding="utf-8")
 rec_path.write_text(r, encoding="utf-8")
