@@ -85,17 +85,17 @@ s=one(s,
 
     private fun precisionFieldCollectorSummary(): String {''',
 "aggregated pose helper")
-reset=re.compile(r'(?m)^([ \\t]*)precisionCollectorWindowSnapshots\\.clear\\(\\)$')
+reset=re.compile(r'(?m)^([ \t]*)precisionCollectorWindowSnapshots\.clear\(\)$')
 s,reset_count=reset.subn(
-    lambda m:m.group(0)+"\\n"+m.group(1)+"precisionFramePoseWindows.clear()",s
+    lambda m:m.group(0)+"\n"+m.group(1)+"precisionFramePoseWindows.clear()",s
 )
 if reset_count<1:
     raise SystemExit("v8.5 expected window-snapshot reset sites")
 
 # Attach the aggregated short-window blocks only to the existing saved
 # collector_diagnostics.txt, not the live status or quality gates.
-pat=r'(collectorDiagnostic\\s*=\\s*)precisionFieldCollectorSummary\\(\\)'
-repl=r'\\g<1>precisionFieldCollectorSummary() + "\\\\n" + precisionFramePoseScanSummary()'
+pat=r'(collectorDiagnostic\s*=\s*)precisionFieldCollectorSummary\(\)'
+repl=r'\g<1>precisionFieldCollectorSummary() + "\\n" + precisionFramePoseScanSummary()'
 s,n=re.subn(pat,repl,s)
 if n<2: raise SystemExit(f"v8.5 persisted collectorDiagnostic sites: got {n}, expected >=2")
 if s.count("precisionFramePoseScanSummary()") != n+1:
