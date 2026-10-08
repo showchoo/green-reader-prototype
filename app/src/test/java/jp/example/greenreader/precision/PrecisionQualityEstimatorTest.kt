@@ -100,7 +100,8 @@ class PrecisionQualityEstimatorTest {
             collectorWindows = listOf(collector),
             tracking = tracking,
             ball = Vec3(0f, 0f, 0f),
-            cup = Vec3(2f, 0.02f, 0f)
+            cup = Vec3(2f, 0.02f, 0f),
+            temporalCheckVerified = true
         )
 
         assertEquals(PrecisionQualityEstimator.TIER_HIGH_PRECISION, q.tier)
@@ -124,7 +125,8 @@ class PrecisionQualityEstimatorTest {
                 cameraTravelMeters = 0.02f
             ),
             ball = Vec3(0f, 0f, 0f),
-            cup = Vec3(2f, 0f, 0f)
+            cup = Vec3(2f, 0f, 0f),
+            temporalCheckVerified = false
         )
 
         assertEquals(PrecisionQualityEstimator.TIER_LOW_CONFIDENCE, q.tier)
