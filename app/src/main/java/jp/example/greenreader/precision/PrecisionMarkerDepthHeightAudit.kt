@@ -79,9 +79,13 @@ object PrecisionMarkerDepthHeightAudit {
         if (!discrepancy.isFinite())
             return Result(Status.INSUFFICIENT_COVERAGE, markerDelta, null, null,
                 ballHeights.size, cupHeights.size)
-        // Observational flag: a 4cm discrepancy cannot be explained by
-        // surface median quantization alone; NOT a claim of cm-accuracy.
-        val state = if (discrepancy >= .04f) Status.DISAGREEMENT else Status.CONSISTENT
+        // A 2.5 cm minimum (or 2% of baseline for longer putts) is a
+        // conservative internal contradiction flag, NOT a calibration or
+        // proof of physical accuracy. v9.3 flat-floor field scans showed
+        // false "consistent" verdicts with 3.1-3.7 cm disagreement.
+        val discrepancyLimit = max(.025f, distance * .02f)
+        val state = if (discrepancy >= discrepancyLimit)
+            Status.DISAGREEMENT else Status.CONSISTENT
         return Result(state, markerDelta, depthDelta, discrepancy,
             ballHeights.size, cupHeights.size)
     }
