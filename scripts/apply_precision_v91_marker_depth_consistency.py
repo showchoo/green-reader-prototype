@@ -21,14 +21,16 @@ one('''    private var precisionCurrentQuality: jp.example.greenreader.precision
 '''    private var precisionCurrentQuality: jp.example.greenreader.precision.PrecisionScanQuality? = null
     private var precisionMarkerDepthDisagreement = false''',
 "state")
-one('''        precisionCurrentQuality = null
+reset_old = '''        precisionCurrentQuality = null
         precisionCompletedDiagnostic = ""
-        precisionLastScanFailed = false''',
-'''        precisionCurrentQuality = null
+        precisionLastScanFailed = false'''
+reset_new = '''        precisionCurrentQuality = null
         precisionMarkerDepthDisagreement = false
         precisionCompletedDiagnostic = ""
-        precisionLastScanFailed = false''',
-"reset per scan")
+        precisionLastScanFailed = false'''
+if s.count(reset_old) != 3:
+    raise SystemExit(f"v9.1 expected 3 reset points, got {s.count(reset_old)}")
+s = s.replace(reset_old, reset_new)
 one('''        precisionCurrentQuality =
             jp.example.greenreader.precision.PrecisionQualityEstimator.evaluate(''',
 '''        // The ground-cell heights are observational and not truth data.
