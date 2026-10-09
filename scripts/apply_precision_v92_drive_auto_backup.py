@@ -112,10 +112,7 @@ helpers='''    private fun updateDriveBackupStatus() {
             }
     }
 
-    @Deprecated("Google Identity authorization uses IntentSender resolution")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQ_DRIVE_AUTH) return
+    private fun onDriveAuthorizationResult(resultCode: Int, data: Intent?) {
         if (resultCode != Activity.RESULT_OK || data == null) {
             toast("Google Drive連携はキャンセルされました")
             updateDriveBackupStatus()
@@ -147,6 +144,17 @@ helpers='''    private fun updateDriveBackupStatus() {
 
 '''
 m=replace_once(m,'''    private fun refresh() {''',helpers+'''    private fun refresh() {''',"manager auth helpers")
+m=replace_once(m,
+'''        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_RECORDS_TREE || resultCode != RESULT_OK) return''',
+'''        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_DRIVE_AUTH) {
+            onDriveAuthorizationResult(resultCode, data)
+            return
+        }
+        if (requestCode != REQ_RECORDS_TREE || resultCode != RESULT_OK) return''',
+"merge Drive consent with existing SAF callback")
+
 m=replace_once(m,'''        val folders = loadFolders()
         list.removeAllViews()''',
 '''        val folders = loadFolders()
