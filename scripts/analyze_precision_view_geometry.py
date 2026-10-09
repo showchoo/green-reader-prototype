@@ -32,7 +32,10 @@ CSV_COLUMNS = [
     "axial_range_median_m", "off_axis_angle_median_deg",
     "off_axis_angle_p95_deg", "raw_rays", "full_rays",
     "same_voxel_view_pairs", "edge_minus_center_height_median_mm",
-    "view_comparison_status"
+    "view_comparison_status",
+    "matched_depth_pose_records", "pose_history_gap_p95_ms",
+    "camera_translation_delta_median_m", "camera_translation_delta_p95_m",
+    "camera_forward_delta_p95_deg", "pose_motion_status"
 ]
 
 
@@ -191,10 +194,12 @@ def analyze_scan(name, diag, points, sources, sample_step=8):
     out["pose_full"] = sum(k[1] == "full" for k in poses)
     out["duplicate_pose_keys"] = duplicates
     out["status"] = "legacy_no_pose" if not poses else "legacy_pose_no_view_axes"
+    out["pose_motion_status"] = "not_recorded"
     if not poses:
         return out
     source_map = _parse_sources(sources) if sources else {}
     ages, heights, pitch, positions = [], [], [], []
+    history_gaps, camera_moves, camera_turns = [], [], []
     for (timestamp, _), pose in poses.items():
         try:
             # Keep nanosecond timestamps as integers to avoid float rounding
@@ -208,6 +213,14 @@ def analyze_scan(name, diag, points, sources, sample_step=8):
         if all(v is not None for v in xyz):
             positions.append(xyz)
             heights.append(xyz[1])
+        lag = getnum(pose, "nearest_camera_gap_ms")
+        move = getnum(pose, "camera_translation_delta_m")
+        turn = getnum(pose, "camera_forward_delta_deg")
+        if lag is not None and move is not None and turn is not None:
+            if 0 <= lag <= 80. and move >= 0 and 0 <= turn <= 180.:
+                history_gaps.append(lag)
+                camera_moves.append(move)
+                camera_turns.append(turn)
         local_y = getnum(pose, "camera_forward_local_y")
         if local_y is not None:
             pitch.append(math.degrees(math.asin(max(-1., min(1., -local_y)))))
@@ -221,6 +234,15 @@ def analyze_scan(name, diag, points, sources, sample_step=8):
         out["camera_pitch_span_deg"] = rounded(max(pitch) - min(pitch))
     out["depth_age_median_ms"] = rounded(pct(ages, .5))
     out["depth_age_p95_ms"] = rounded(pct(ages, .95))
+    out["matched_depth_pose_records"] = len(history_gaps)
+    out["pose_history_gap_p95_ms"] = rounded(pct(history_gaps, .95))
+    out["camera_translation_delta_median_m"] = rounded(pct(camera_moves, .5))
+    out["camera_translation_delta_p95_m"] = rounded(pct(camera_moves, .95))
+    out["camera_forward_delta_p95_deg"] = rounded(pct(camera_turns, .95))
+    out["pose_motion_status"] = (
+        "history_matched" if len(history_gaps) >= 5
+        else "few_historical_frames" if history_gaps else "not_recorded"
+    )
     if not source_map:
         out["status"] = "pose_without_source_sidecar"
         return out
