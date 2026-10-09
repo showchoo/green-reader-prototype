@@ -23,6 +23,12 @@ jobs:
           gradle-version: '8.9'
       - name: Generate source
         run: python3 scripts/build_precision_v97.py
+      - name: Offline geometry regression tests
+        run: python3 -m unittest discover -s scripts -p 'test_analyze_precision_view_geometry.py' -v
+      - name: Session consistency regression tests
+        run: python3 -m unittest discover -s scripts -p 'test_analyze_precision_session_consistency.py' -v
+      - name: Set up original upgrade-compatible signing
+        run: python3 scripts/prepare_existing_signing_v73.py
       - name: Unit tests
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
       - name: Verify package and certificate
