@@ -10,6 +10,8 @@ package jp.example.greenreader.precision
 object PrecisionScanFailureAdvisor {
     enum class Reason {
         NO_QUALITY_EVIDENCE,
+        NO_DEPTH_IMAGES,
+        NO_USABLE_DEPTH,
         FULL_DEPTH_WITHOUT_GROUND,
         RAW_DEPTH_UNAVAILABLE,
         INSUFFICIENT_GROUND_CELLS,
@@ -27,7 +29,27 @@ object PrecisionScanFailureAdvisor {
             "FAILURE_ADVICE reason=" + reason.name + " guidance=" + guidance
     }
 
-    fun evaluate(q: PrecisionScanQuality?): Advice {
+    fun evaluate(
+        q: PrecisionScanQuality?,
+        depth: PrecisionDepthStallPolicy.Decision? = null
+    ): Advice {
+        if (depth?.state == PrecisionDepthStallPolicy.State.NO_DEPTH_IMAGES ||
+            (q != null && q.rawAcceptedFrames == 0 &&
+                q.fullAcceptedFrames == 0 && q.uniqueDepthFrames == 0)) {
+            return Advice(
+                Reason.NO_DEPTH_IMAGES,
+                "ARの追跡が正常でもRaw/Full Depth画像を取得できません。\n" +
+                "MENU→AR・Depth再起動でセッションを作り直してください。" +
+                "再起動後はボール・カップを再指定してください"
+            )
+        }
+        if (depth?.state == PrecisionDepthStallPolicy.State.NO_USABLE_DEPTH) {
+            return Advice(
+                Reason.NO_USABLE_DEPTH,
+                "Depth画像は届いていますが、有効点が取得できません。" +
+                "MENU→AR・Depth再起動を試し、改善しなければ床面の特徴が見える場所で再測定してください"
+            )
+        }
         if (q == null) return Advice(
             Reason.NO_QUALITY_EVIDENCE,
             "解析用データが不足しています。AR追跡とボール・カップ位置を確認して再スキャンしてください"
