@@ -132,6 +132,48 @@ class ViewGeometryAuditTests(unittest.TestCase):
         self.assertEqual(0, n)
         self.assertIsNone(diff)
 
+    def test_pose_motion_statistics_do_not_fake_missing_samples(self):
+        diag, points, sources = sample_record()
+        baseline = analysis.analyze_scan("v86", diag, points, sources, sample_step=1)
+        self.assertEqual("not_recorded", baseline["pose_motion_status"])
+        self.assertEqual(0, baseline["matched_depth_pose_records"])
+        self.assertEqual("", baseline["camera_translation_delta_p95_m"])
+
+        columns = (
+            ",nearest_camera_frame_timestamp_ns,nearest_camera_gap_ms,"
+            "camera_translation_delta_m,camera_forward_delta_deg"
+        )
+        diag = diag.replace(HEADER, HEADER + columns)
+        lines = diag.splitlines()
+        for i, line in enumerate(lines):
+            if line.startswith("100,"):
+                lines[i] += ",100,0,0.023,1.5"
+            elif line.startswith("200,"):
+                lines[i] += ",198,0.000002,0.091,3.0"
+        diag = "\n".join(lines)
+        with_motion = analysis.analyze_scan("v87", diag, points, sources, sample_step=1)
+        self.assertEqual("few_historical_frames", with_motion["pose_motion_status"])
+        self.assertEqual(2, with_motion["matched_depth_pose_records"])
+        self.assertEqual(0.057, with_motion["camera_translation_delta_median_m"])
+        self.assertEqual(0.003, with_motion["camera_forward_delta_p95_deg"] / 1000, 5)
+
+    def test_invalid_pose_motion_is_not_accepted(self):
+        diag, points, sources = sample_record()
+        suffix = (
+            ",nearest_camera_frame_timestamp_ns,nearest_camera_gap_ms,"
+            "camera_translation_delta_m,camera_forward_delta_deg"
+        )
+        diag = diag.replace(HEADER, HEADER + suffix)
+        rows = diag.splitlines()
+        for i, line in enumerate(rows):
+            if line.startswith("100,"):
+                rows[i] += ",100,101.0,0.01,1.0"  # exceeds allowed 80ms
+            elif line.startswith("200,"):
+                rows[i] += ",200,0.0,-0.20,1.0"  # invalid negative motion
+        value = analysis.analyze_scan("invalid", "\n".join(rows), points, sources)
+        self.assertEqual("not_recorded", value["pose_motion_status"])
+        self.assertEqual(0, value["matched_depth_pose_records"])
+
     def test_zip_replay_does_not_need_camera_photo(self):
         diag, points, sources = sample_record()
         with tempfile.TemporaryDirectory() as tmp:
