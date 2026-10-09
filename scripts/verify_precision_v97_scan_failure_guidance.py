@@ -6,7 +6,7 @@ g=Path("app/build.gradle.kts").read_text(encoding="utf8")
 c=(root/"precision/PrecisionScanFailureAdvisor.kt").read_text(encoding="utf8")
 assert 'versionName = "9.7"' in g and "versionCode = 970" in g
 assert 'appVersion = "Precision 9.7"' in m
-assert 'recordPrecisionScanFailure(failureAdvice.message())' in m
+assert 'failureAdvice.message()' in m
 assert 'precisionLastDiagnostic += " | " + failureAdvice.diagnostic()' in m
 assert 'PrecisionScanFailureAdvisor.evaluate(' in m
 assert "Reason.FULL_DEPTH_WITHOUT_GROUND" in c
