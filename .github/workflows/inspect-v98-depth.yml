@@ -1,0 +1,25 @@
+name: Inspect v9.7 generated Depth lifecycle
+on:
+  push:
+    branches: [chatgpt-v98-depth-stall-recovery]
+    paths: [.github/workflows/inspect-v98-depth.yml]
+  workflow_dispatch:
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Generate and inspect Depth / AR lifecycle
+        run: |
+          python scripts/build_precision_v97.py >/tmp/build.log
+          tail -4 /tmp/build.log
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('app/src/main/java/jp/example/greenreader/MainActivity.kt').read_text()
+          for term in ['private fun recordPrecisionScanFailure(', 'private fun startArIfNeeded(', 'override fun onResume(', 'override fun onPause(', 'override fun onDestroy(', 'private fun resumeArForCamera(', 'private fun suspendArForResult(', 'private fun toggleScan(', 'private fun advancePrecisionConsensusWindow(', 'private fun finishPrecisionScan(', 'precisionCollector.integrate(', 'precisionCollectorWindowSnapshots +=', 'if (combined == null', 'private fun onDepth', 'private fun restartRenderLoop(', 'private fun showCamera(', 'private fun resetAll(']:
+              off=s.find(term)
+              print('\n===== '+term+' at '+str(off)+' =====')
+              if off>=0: print(s[max(0,off-300):off+7800])
+          PY
