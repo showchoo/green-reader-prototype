@@ -10,20 +10,26 @@ gradle=Path("app/build.gradle.kts")
 s=main.read_text(encoding="utf8")
 g=gradle.read_text(encoding="utf8")
 
-old='''                recordPrecisionScanFailure("追加測定しても結果が安定しませんでした。もう一度スキャンしてください")'''
+old='''                recordPrecisionScanFailure(
+                    if (precisionTemporalUnstable) {
+                        "測定中に傾斜推定が変動しました。端末をゆっくり動かして再スキャンしてください"
+                    } else {
+                        "追加測定しても結果が安定しませんでした。もう一度スキャンしてください"
+                    }
+                )'''
 new='''                val failureAdvice =
                     jp.example.greenreader.precision.PrecisionScanFailureAdvisor.evaluate(
                         precisionCurrentQuality
                     )
                 precisionLastDiagnostic += " | " + failureAdvice.diagnostic()
-                recordPrecisionScanFailure(failureAdvice.message())'''
-if s.count(old) != 1:
-    at=s.find("追加測定しても")
-    places=[(k,s[max(0,k-190):k+220]) for k in range(len(s)) if s.startswith("recordPrecisionScanFailure(",k)]
-    raise SystemExit("v9.7 8-window failure target " + str(s.count(old)) + 
-        "; generic phrase=" + str(at) +
-        "; snippet=" + repr(s[max(0,at-210):at+240]) +
-        "; calls=" + repr(places[:14]))
+                recordPrecisionScanFailure(
+                    if (precisionTemporalUnstable) {
+                        "測定中に傾斜推定が変動しました。" + failureAdvice.message()
+                    } else {
+                        failureAdvice.message()
+                    }
+                )'''
+if s.count(old)!=1: raise SystemExit("v9.7 exact 8-window failure block not found")
 s=s.replace(old,new,1)
 if s.count("Precision 9.6")<2:raise SystemExit("v9.7 previous version missing")
 s=s.replace("Precision 9.6","Precision 9.7")
