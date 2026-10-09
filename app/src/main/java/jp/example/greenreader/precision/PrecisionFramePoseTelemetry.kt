@@ -166,11 +166,9 @@ object PrecisionFramePoseTelemetry {
 
         /** Embed a machine-readable CSV section into collector_diagnostics.txt. */
         fun toDiagnosticText(): String = buildString {
+            // Keep the v8.5/v8.6 block preamble byte-compatible.
             append("FRAME_POSE_V1_BEGIN records=").append(records.size)
-                .append(" dropped=").append(dropped)
-                .append(" camera_frames=").append(cameraFrames.size)
-                .append(" dropped_camera_frames=").append(droppedCameraFrames)
-                .append('\n')
+                .append(" dropped=").append(dropped).append('\n')
             append("depth_timestamp_ns,camera_frame_timestamp_ns,source,")
             append("camera_local_x_m,camera_local_y_m,camera_local_z_m,")
             append("camera_world_qx,camera_world_qy,camera_world_qz,camera_world_qw,")
