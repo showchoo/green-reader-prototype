@@ -17,7 +17,13 @@ new='''                val failureAdvice =
                     )
                 precisionLastDiagnostic += " | " + failureAdvice.diagnostic()
                 recordPrecisionScanFailure(failureAdvice.message())'''
-if s.count(old) != 1: raise SystemExit(f"v9.7 8-window failure target {s.count(old)}")
+if s.count(old) != 1:
+    at=s.find("追加測定しても")
+    places=[(k,s[max(0,k-190):k+220]) for k in range(len(s)) if s.startswith("recordPrecisionScanFailure(",k)]
+    raise SystemExit("v9.7 8-window failure target " + str(s.count(old)) + 
+        "; generic phrase=" + str(at) +
+        "; snippet=" + repr(s[max(0,at-210):at+240]) +
+        "; calls=" + repr(places[:14]))
 s=s.replace(old,new,1)
 if s.count("Precision 9.6")<2:raise SystemExit("v9.7 previous version missing")
 s=s.replace("Precision 9.6","Precision 9.7")
