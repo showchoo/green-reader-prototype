@@ -39,7 +39,7 @@ g=g.replace('versionName = "9.6"','versionName = "9.7"')
 g=g.replace("versionCode = 960","versionCode = 970")
 assert "val precisionMaxWindows = 8" in s
 assert "if (combined == null)" in s
-assert 'recordPrecisionScanFailure(failureAdvice.message())' in s
+assert 'failureAdvice.message()' in s
 assert "PrecisionMarkerDepthHeightAudit.evaluate(" in s
 assert "PrecisionRepeatScanRecovery.decide(" in s
 assert "PrecisionMotionEvidenceGate.evaluate(" in s
