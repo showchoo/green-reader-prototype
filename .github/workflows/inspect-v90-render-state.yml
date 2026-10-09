@@ -1,0 +1,32 @@
+name: Diagnose scan resume render state
+on:
+  workflow_dispatch:
+  push:
+    branches: [chatgpt-v90-continuous-scan-resume]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/build_precision_v89.py
+      - name: Print AR render / result lifecycle
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          lines=Path('app/src/main/java/jp/example/greenreader/MainActivity.kt').read_text().splitlines()
+          terms=('private fun showCamera(', 'private fun showOverlay(', 'private fun showMap(', 'private fun restartRenderLoop(', 'override fun onDrawFrame(', 'private fun finishConsensusWindow(', 'private fun completePrecision', 'private fun finishPrecisionScan(', 'private fun onScan', 'override fun onResume(', 'override fun onPause(', 'private fun requestCaptureAndAnalyze(', 'private fun toggleScan(')
+          for term in terms:
+            hits=[i for i,line in enumerate(lines) if term in line]
+            print('SECTION',term,'HITS',hits)
+            for i in hits:
+              for j in range(i,min(len(lines),i+100)):
+                print('%d: %s'%(j+1,lines[j]))
+                if j>i+4 and lines[j].startswith('    private fun '):break
+          print('MATCHING_RENDER_LINES')
+          for i,line in enumerate(lines):
+            if any(term in line for term in ('gl.visibility', 'renderHandler.postDelayed', 'renderHandler.removeCallbacks', 'restartRenderLoop()', 'trackingStateText =', 'scanning = false')):
+              print('%d: %s'%(i+1,line))
+          PY
