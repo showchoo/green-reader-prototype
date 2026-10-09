@@ -126,9 +126,7 @@ c = one(c, "        if (added > 0) {\n",
 """, "record actual Raw points")
 
 m = one(m,
-"""        if (depthSourceVerdict.blocksDirection) precisionDirectionTrustworthy = false
-
-        consensusReport = combined""",
+"""        if (depthSourceVerdict.blocksDirection) precisionDirectionTrustworthy = false""",
 """        if (depthSourceVerdict.blocksDirection) precisionDirectionTrustworthy = false
         val sparseMixedUnverified =
             jp.example.greenreader.precision.PrecisionFullDepthSupplementPolicy
@@ -138,21 +136,16 @@ m = one(m,
                     fullPoints = depthSourceVerdict.full.points,
                     independentSourcesAgree = depthSourceVerdict.crossSourceVerified
                 )
-        if (sparseMixedUnverified) precisionDirectionTrustworthy = false
-
-        consensusReport = combined""", "suppress unverified sparse mixed guidance")
+        if (sparseMixedUnverified) precisionDirectionTrustworthy = false""",
+"suppress unverified sparse mixed guidance")
 m = one(m,
-"""        precisionLastDiagnostic += " | " + depthSourceVerdict.diagnostic +
-            " | " + directionVerdict.diagnostic +""",
-"""        precisionLastDiagnostic += " | " + depthSourceVerdict.diagnostic +
-            " | SPARSE_RAW_FULL_UNVERIFIED=" + sparseMixedUnverified +
-            " | " + directionVerdict.diagnostic +""", "field telemetry")
+    'depthSourceVerdict.diagnostic',
+    'depthSourceVerdict.diagnostic + " | SPARSE_RAW_FULL_UNVERIFIED=" + sparseMixedUnverified',
+    "field telemetry")
 m = one(m,
-    """                    !depthSourceVerdict.blocksDirection
-            )""",
-    """                    !depthSourceVerdict.blocksDirection &&
-                    !sparseMixedUnverified
-            )""", "prevent high trust for sparse mixed sources")
+    '!depthSourceVerdict.blocksDirection',
+    '!depthSourceVerdict.blocksDirection &&\n                    !sparseMixedUnverified',
+    "prevent high trust for sparse mixed sources")
 
 if m.count("Precision 9.9") < 2:
     raise RuntimeError("v10.0 expected v9.9 app labels")
