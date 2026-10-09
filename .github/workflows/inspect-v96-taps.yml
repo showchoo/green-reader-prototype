@@ -1,0 +1,39 @@
+name: Inspect v9.5 touch and marking
+on:
+  workflow_dispatch:
+  push:
+    branches: [chatgpt-v96-tap-reliability]
+    paths: [.github/workflows/inspect-v96-taps.yml]
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate and print relevant v9.5 code
+        run: |
+          python scripts/build_precision_v95.py > /tmp/gen.log
+          tail -5 /tmp/gen.log
+          python - <<'PY'
+          from pathlib import Path
+          s=Path("app/src/main/java/jp/example/greenreader/MainActivity.kt").read_text()
+          names=["markAt","resolvePrecisionPendingTap","applyMark","finishPrecisionTap",
+                 "rawDepthPointNearTap","depthPointAtTap","ballPointFromNeighborDepth",
+                 "onDrawFrame","startPrecisionRenderLoop","showCamera","redoPrecisionMarkers",
+                 "beginNextPrecisionPutt","onResume"]
+          for name in names:
+              marker="    private fun "+name+"("
+              start=s.find(marker)
+              if start<0 and name in ("onDrawFrame","onResume"):
+                  start=s.find("    override fun "+name+"(")
+              if start<0: print("MISSING",name);continue
+              stop=s.find("\n    private fun ",start+40)
+              if stop<0:stop=s.find("\n    override fun ",start+40)
+              if stop<0:stop=start+9000
+              print("\n======= GENERATED "+name+" =======\n"+s[start:min(stop,start+9500)])
+          for needle in ("setOnTouchListener","markMode = ","pendingMark = "):
+              i=s.find(needle)
+              print("\n======= SEARCH "+needle+" ======\n"+s[max(0,i-400):i+850])
+          PY
