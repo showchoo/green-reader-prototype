@@ -91,13 +91,16 @@ internal class DriveBackupUploader(private val token: String) {
     fun upsertSession(folderId: String, filename: String, zip: File): String {
         val id = existingZipId(folderId, filename)
         val path = if (id == null) uploadApi else uploadApi + "/" + id
-        val method = if (id == null) "POST" else "PATCH"
+        // HttpURLConnection may reject PATCH on some Android builds.
+        // Google Drive supports POST with the method-override header.
+        val method = "POST"
         val metadata = JSONObject().put("name", filename)
             .put("mimeType", "application/zip")
         if (id == null) metadata.put("parents", org.json.JSONArray().put(folderId))
         val setup = open(path + "?uploadType=resumable&fields=id,name", method)
         val sessionUrl: String
         try {
+            if (id != null) setup.setRequestProperty("X-HTTP-Method-Override", "PATCH")
             setup.doOutput = true
             setup.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
             setup.setRequestProperty("X-Upload-Content-Type", "application/zip")
