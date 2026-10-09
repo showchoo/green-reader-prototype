@@ -23,7 +23,18 @@ replacement='''        // Estimate only from repeated, local samples around ball
                 }, ball
             )
         } else null
-        val groundReference = anchorSelection?.referenceHeight ?: Float.NaN
+        // Preserve legacy generic surface builder when no marker was provided.
+        // Precision scans always pass an actual ball/cup, so the strict
+        // anchored selector cannot fall back to the global height histogram.
+        val unanchoredHeights = if (ball == null) {
+            val bins = stable.groupBy { floor(it.med / .05f).toInt() }
+            val winner = bins.maxByOrNull { it.value.size }?.key
+            if (winner == null) emptyList() else stable.mapNotNull {
+                if (abs(it.med - (winner + .5f) * .05f) <= .10f) it.med else null
+            }.sorted()
+        } else emptyList()
+        val groundReference = if (ball == null) median(unanchoredHeights)
+            else anchorSelection?.referenceHeight ?: Float.NaN
 
 '''
 s=s[:start]+replacement+s[end:]
@@ -34,14 +45,22 @@ new='''                val radius = if (ball != null) {
 if s.count(old)!=1:raise SystemExit("v9.9 radial height band missing")
 s=s.replace(old,new,1)
 if s.count('dominantHeights.size')!=1:raise SystemExit("v9.9 diagnostic reference count missing")
-s=s.replace('dominantHeights.size','anchorSelection?.matchedHeightCount ?: 0')
+s=s.replace('dominantHeights.size', '(if (ball == null) unanchoredHeights.size else anchorSelection?.matchedHeightCount ?: 0)')
 if s.count(' + marksText + rawSpanText')!=1:raise SystemExit("v9.9 stage diagnostic missing")
 s=s.replace(' + marksText + rawSpanText',' + " " + (anchorSelection?.diagnostic() ?: "ANCHORED_GROUND status=NO_BALL_ANCHOR") + marksText + rawSpanText')
 start=s.find("        val seedKeys = initial\n")
 end=s.find("        // If no ground can be established near the ball",start)
 if start<0 or end<0:raise SystemExit("v9.9 global seed selection not found")
-s=s[:start]+'''        // Use ONLY anchor-supported near-ball seeds, not scene-wide cells.
-        val seedKeys = if (anchorSelection?.valid == true) {
+s=s[:start]+'''        // Precision scans seed strictly from the marked ball vicinity.
+        // Unanchored API callers (legacy generic tests) retain the original
+        // region selection; they are NOT used by the precision scan flow.
+        val seedKeys = if (ball == null) {
+            initial.filter { abs(it.cell.height - groundReference) <= .14f }
+                .sortedWith(compareBy<Candidate> {
+                    hypot(it.cell.x.toDouble(), it.cell.z.toDouble())
+                }.thenBy { abs(it.cell.height - groundReference) })
+                .take(16).map { it.key }
+        } else if (anchorSelection?.valid == true) {
             anchorSelection.seedIndices.mapNotNull { i ->
                 val k = stable[i].key
                 if (map.containsKey(k)) k else null
