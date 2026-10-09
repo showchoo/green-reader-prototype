@@ -155,7 +155,7 @@ class ViewGeometryAuditTests(unittest.TestCase):
         self.assertEqual("few_historical_frames", with_motion["pose_motion_status"])
         self.assertEqual(2, with_motion["matched_depth_pose_records"])
         self.assertEqual(0.057, with_motion["camera_translation_delta_median_m"])
-        self.assertEqual(0.003, with_motion["camera_forward_delta_p95_deg"] / 1000, 5)
+        self.assertAlmostEqual(2.925, with_motion["camera_forward_delta_p95_deg"], places=4)
 
     def test_invalid_pose_motion_is_not_accepted(self):
         diag, points, sources = sample_record()
