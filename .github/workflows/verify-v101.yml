@@ -1,7 +1,7 @@
 name: Verify Green Reader v10.1
 on:
   push:
-    branches: [chatgpt-v101-sparse-raw-fallback]
+    branches: [chatgpt-v101-depth-freshness-guard]
   pull_request:
     branches: [chatgpt-v100-sparse-raw-fallback]
   workflow_dispatch:
