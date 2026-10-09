@@ -1,6 +1,9 @@
 package jp.example.greenreader.precision
 
 import java.util.Locale
+import kotlin.math.acos
+import kotlin.math.abs
+import kotlin.math.sqrt
 
 /**
  * Low-cost camera-pose telemetry for offline Depth bias analysis.
@@ -44,14 +47,96 @@ object PrecisionFramePoseTelemetry {
         val principalY: Float = 0f
     )
 
-    class Buffer(private val maxRecords: Int = 256) {
-        init { require(maxRecords >= 1) }
+    /** A pose captured on a tracked ARCore Frame, not the acquired Depth Image. */
+    data class CameraFramePose(
+        val frameTimestampNs: Long,
+        val x: Float,
+        val y: Float,
+        val z: Float,
+        val forwardX: Float,
+        val forwardY: Float,
+        val forwardZ: Float
+    )
+
+    data class NearestFrameMatch(
+        val frameTimestampNs: Long,
+        val absoluteTimeGapMs: Double,
+        val translationDeltaM: Double,
+        val forwardDeltaDegrees: Double
+    )
+
+    class Buffer(
+        private val maxRecords: Int = 256,
+        private val maxCameraFrames: Int = 256
+    ) {
+        init {
+            require(maxRecords >= 1)
+            require(maxCameraFrames >= 1)
+        }
         private val records = LinkedHashMap<Pair<Long, String>, Entry>()
         private var dropped = 0
+        private val cameraFrames = LinkedHashMap<Long, CameraFramePose>()
+        private var droppedCameraFrames = 0
+
+        // The diagnostic does not assume that current ARCore pose belongs
+        // to the Depth image; retain tracked frame poses for later matching.
+        fun recordCameraFrame(frame: CameraFramePose) {
+            if (frame.frameTimestampNs <= 0L) return
+            if (!listOf(frame.x, frame.y, frame.z,
+                        frame.forwardX, frame.forwardY, frame.forwardZ)
+                    .all { it.isFinite() }) return
+            if (cameraFrames.containsKey(frame.frameTimestampNs)) return
+            if (cameraFrames.size >= maxCameraFrames) {
+                cameraFrames.remove(cameraFrames.keys.first())
+                droppedCameraFrames++
+            }
+            cameraFrames[frame.frameTimestampNs] = frame
+        }
+
+        fun cameraFrameCount(): Int = cameraFrames.size
+
+        fun nearestFrameFor(
+            depth: Entry,
+            maxGapNs: Long = 80_000_000L
+        ): NearestFrameMatch? {
+            if (maxGapNs < 0L || depth.depthTimestampNs <= 0L) return null
+            val nearest = cameraFrames.values.minByOrNull {
+                abs(it.frameTimestampNs - depth.depthTimestampNs)
+            } ?: return null
+            val gap = abs(nearest.frameTimestampNs - depth.depthTimestampNs)
+            if (gap > maxGapNs) return null
+            val dx = (depth.x - nearest.x).toDouble()
+            val dy = (depth.y - nearest.y).toDouble()
+            val dz = (depth.z - nearest.z).toDouble()
+            val distance = sqrt(dx * dx + dy * dy + dz * dz)
+            val dot = (depth.forwardLocalX * nearest.forwardX +
+                       depth.forwardLocalY * nearest.forwardY +
+                       depth.forwardLocalZ * nearest.forwardZ).toDouble()
+            val a = sqrt(
+                (depth.forwardLocalX * depth.forwardLocalX +
+                 depth.forwardLocalY * depth.forwardLocalY +
+                 depth.forwardLocalZ * depth.forwardLocalZ).toDouble()
+            )
+            val b = sqrt(
+                (nearest.forwardX * nearest.forwardX +
+                 nearest.forwardY * nearest.forwardY +
+                 nearest.forwardZ * nearest.forwardZ).toDouble()
+            )
+            if (a <= 1e-6 || b <= 1e-6) return null
+            val cosine = (dot / (a * b)).coerceIn(-1.0, 1.0)
+            return NearestFrameMatch(
+                frameTimestampNs = nearest.frameTimestampNs,
+                absoluteTimeGapMs = gap / 1e6,
+                translationDeltaM = distance,
+                forwardDeltaDegrees = Math.toDegrees(acos(cosine))
+            )
+        }
 
         fun clear() {
             records.clear()
             dropped = 0
+            cameraFrames.clear()
+            droppedCameraFrames = 0
         }
 
         fun size(): Int = records.size
@@ -82,14 +167,19 @@ object PrecisionFramePoseTelemetry {
         /** Embed a machine-readable CSV section into collector_diagnostics.txt. */
         fun toDiagnosticText(): String = buildString {
             append("FRAME_POSE_V1_BEGIN records=").append(records.size)
-                .append(" dropped=").append(dropped).append('\n')
+                .append(" dropped=").append(dropped)
+                .append(" camera_frames=").append(cameraFrames.size)
+                .append(" dropped_camera_frames=").append(droppedCameraFrames)
+                .append('\n')
             append("depth_timestamp_ns,camera_frame_timestamp_ns,source,")
             append("camera_local_x_m,camera_local_y_m,camera_local_z_m,")
             append("camera_world_qx,camera_world_qy,camera_world_qz,camera_world_qw,")
             append("camera_forward_local_x,camera_forward_local_y,camera_forward_local_z,")
             append("camera_right_local_x,camera_right_local_y,camera_right_local_z,")
             append("projection_basis,projection_width,projection_height,")
-            append("intrinsics_fx,intrinsics_fy,intrinsics_cx,intrinsics_cy")
+            append("intrinsics_fx,intrinsics_fy,intrinsics_cx,intrinsics_cy,")
+            append("nearest_camera_frame_timestamp_ns,nearest_camera_gap_ms,")
+            append("camera_translation_delta_m,camera_forward_delta_deg")
                 .append('\n')
             fun format(v: Float) = String.format(Locale.US, "%.6f", v)
             for (v in records.values) {
@@ -115,7 +205,17 @@ object PrecisionFramePoseTelemetry {
                 append(format(v.focalX)).append(',')
                 append(format(v.focalY)).append(',')
                 append(format(v.principalX)).append(',')
-                append(format(v.principalY)).append('\n')
+                append(format(v.principalY)).append(',')
+                val match = nearestFrameFor(v)
+                if (match == null) {
+                    append(",,,")
+                } else {
+                    append(match.frameTimestampNs).append(',')
+                    append(String.format(Locale.US, "%.6f", match.absoluteTimeGapMs)).append(',')
+                    append(String.format(Locale.US, "%.6f", match.translationDeltaM)).append(',')
+                    append(String.format(Locale.US, "%.6f", match.forwardDeltaDegrees))
+                }
+                append('\n')
             }
             append("FRAME_POSE_V1_END")
         }
