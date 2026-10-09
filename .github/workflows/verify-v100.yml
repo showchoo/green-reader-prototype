@@ -2,6 +2,8 @@ name: Verify Green Reader v10.0
 on:
   push:
     branches: [chatgpt-v100-sparse-raw-fallback]
+  pull_request:
+    branches: [chatgpt-v99-anchored-ground-selection]
   workflow_dispatch:
 permissions:
   contents: read
