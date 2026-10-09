@@ -120,10 +120,9 @@ c = one(c, "        val timestamp = depth.timestamp\n",
 """        if (isRaw) lastRawAcceptedPointCount = 0
         val timestamp = depth.timestamp
 """, "invalidate count on duplicates")
-c = one(c, "        if (added > 0) {\n            frameTimestamps += timestamp\n",
+c = one(c, "        if (added > 0) {\n",
 """        if (added > 0) {
             if (isRaw) lastRawAcceptedPointCount = added
-            frameTimestamps += timestamp
 """, "record actual Raw points")
 
 m = one(m,
