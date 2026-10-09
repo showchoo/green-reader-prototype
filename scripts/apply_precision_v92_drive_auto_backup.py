@@ -195,6 +195,11 @@ g=replace_once(g,
     implementation("com.google.android.gms:play-services-auth:21.5.0")
     implementation("androidx.work:work-runtime-ktx:2.11.2")''',
 "google identity and WorkManager")
+s=Path("app/src/main/java/jp/example/greenreader/MainActivity.kt").read_text(encoding="utf8")
+if s.count("Precision 9.1") < 2:
+    raise SystemExit("v9.2 expected v9.1 label")
+s=s.replace("Precision 9.1", "Precision 9.2")
+Path("app/src/main/java/jp/example/greenreader/MainActivity.kt").write_text(s,encoding="utf8")
 g=replace_once(g,
 '''versionCode = 910''','''versionCode = 920''',"version code")
 g=replace_once(g,
