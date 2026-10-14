@@ -94,7 +94,7 @@ c=one(c,
 '''    @Synchronized fun framePoseDiagnostics(): String =
         framePoseTelemetry.toDiagnosticText()''',
 '''    @Synchronized fun framePoseDiagnostics(): String =
-        framePoseTelemetry.toDiagnosticText() + "\n" +
+        framePoseTelemetry.toDiagnosticText() + "\\n" +
             PrecisionSourceOverlapAudit.diagnostic(samples)''',"per-window source overlap saved in existing collector_diagnostics")
 m=one(m,
 '''            " confPass=" + total.confidencePassedPixels +
