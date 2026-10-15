@@ -49,6 +49,17 @@ object PrecisionProjectionRayAudit {
         return sorted[index]
     }
 
+    /** ARCore camera convention: +Y up and camera looks along -Z. */
+    fun cameraRay(pixelX: Float, pixelY: Float, axialDepthM: Float,
+                  fx: Float, fy: Float, cx: Float, cy: Float): FloatArray? {
+        if (!pixelX.isFinite() || !pixelY.isFinite() ||
+            !axialDepthM.isFinite() || axialDepthM <= 0f ||
+            !fx.isFinite() || !fy.isFinite() || fx <= 0f || fy <= 0f ||
+            !cx.isFinite() || !cy.isFinite()) return null
+        return floatArrayOf(axialDepthM*(pixelX-cx)/fx,
+            axialDepthM*(cy-pixelY)/fy, -axialDepthM)
+    }
+
     class Buffer {
         private val raw = ArrayList<Probe>()
         private val full = ArrayList<Probe>()
