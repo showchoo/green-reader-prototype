@@ -63,7 +63,7 @@ class PrecisionRawFloorCoveragePolicyTest {
 
     @Test fun sourceMustBeRawNotFullForCoverageDecision() {
         val full=floorPoints().map {
-            it.copy(depthSource="full")
+            PrecisionDepthPoint(it.x,it.y,it.z,it.confidence,it.frameTimestampNs,"full")
         }
         assertFalse(PrecisionRawFloorCoveragePolicy.evaluate(full,cup).valid)
     }
