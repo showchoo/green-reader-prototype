@@ -56,3 +56,34 @@ Official references:
 - If it passes, proceed to independently verified 1–3% sloped tests, and only then golf-green validation.
 
 Release decision now: **NO RELEASE CERTIFICATION**. Device-specific impossibility: **NOT PROVEN**.
+
+
+## October 16: Locked execution protocol (v10.6; no new APK)
+
+**User-side physical preparation (one time only):**
+- Mark two small spots A and B on the same floor (approximately 0.8–1.0 m apart). Do not place the AR markers on the straightedge itself.
+- Check the actual physical rise from A to B with a rigid straightedge, spirit level and measured shim thickness, or a suitably calibrated independent measuring instrument.
+- Keep the actual baseline length in millimetres, signed rise in millimetres (B higher than A = positive), and measurement method. The AR marker delta is NOT an acceptable substitute.
+- Remove the straightedge before capturing the scene; leave the A/B floor marks.
+
+**Exact scan sequence for a single ZIP:**
+1. `Putt_001`: Ball=A, cup=B, 3 scans with minimal phone translation.
+2. `Putt_002`: Ball=A, cup=B **at exactly the same floor marks**, 3 scans with the phone genuinely translated laterally 20–30 cm **during each scan**, not merely rotated.
+3. `Putt_003`: Ball=B, cup=A, 3 scans. This is a deliberate reversed direction, **not a different target line**.
+
+User can report the measured baseline/rise/method along with “スキャンしました”. The assistant retrieves the Session ZIP from the existing connected Google Drive and performs the evaluation. No need for the user to copy scan logs manually.
+
+**Fail-closed controls for the evaluator:**
+- Missing physical reference, unconfirmed identical marks, absent reverse direction, fewer than 3 valid scans in any condition, or missing <18 cm travel in the moving condition → **HOLD: invalid/incomplete protocol**, never PASS.
+- Compare the registered AR marker distance to the tape measurement (tolerance max(5cm, 5%)).
+- Three conditions are checked against signed independent grade; reverse direction is compared against NEGATIVE of the measured grade.
+- Per-condition repeat spread <= 0.5 percentage point, median absolute error <= 0.5 percentage point across the benchmark, worst error <= 1.0 percentage point.
+- Passing is `CONTROLLED_BENCHMARK_PASS_NOT_PRODUCT_READY`: a real-green and aim-line test is still mandatory.
+
+**Recheck of latest v10.6 ZIP (Putt_001 and Putt_002 only):**
+- Putt_001 3/3 numerical slopes ~5.86%, 6.06%, 5.81%, travel ~1.4–2.5 cm.
+- Putt_002 3/3 numerical slopes ~5.42%, 3.84%, 5.38%, travel ~4.2–12.6 cm.
+- All 6 were LOW_CONFIDENCE. No reversed `Putt_003`, no measured physical grade.
+- Therefore the current data must remain `HOLD_PROTOCOL_OR_REFERENCE_INCOMPLETE`, not a claim that hardware is impossible or a claim that accuracy is proven.
+
+**Development constraint:** The v10.6 binary remains the test instrument. No follow-on numerical threshold tuning or new diagnostic APK until the independent baseline/reverse-direction benchmark establishes a concrete failure mode.
