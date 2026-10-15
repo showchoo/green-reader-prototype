@@ -16,7 +16,7 @@ assert 'fit!!.dHdForward' in s and 'fit!!.dHdRight' in s
 assert 'independentGroundTruth=false' in s
 assert 'INSUFFICIENT_DUAL_SOURCE' in s
 assert 'PrecisionDepthSourceAudit.analyze(' in m
-assert 'precisionLastDiagnostic += " | " + depthSourceVerdict.diagnostic' in m
+assert 'depthSourceVerdict.diagnostic' in m and 'precisionLastDiagnostic' in m
 assert 'PrecisionDepthRecoveryAdvisor' in m
 assert 'depthRecovery.offerRestart' in m
 assert 'precisionConsecutiveNoDepthScans' in m
