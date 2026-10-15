@@ -58,9 +58,9 @@ object PrecisionMarkerFloorOffsetAudit {
         }
         fun median(xs: List<Float>): Float? {
             if (xs.size < 6) return null
-            xs.sort()
-            val n=xs.size
-            return if (n%2==0) (xs[n/2-1]+xs[n/2])*0.5f else xs[n/2]
+            val sorted=xs.sorted()
+            val n=sorted.size
+            return if (n%2==0) (sorted[n/2-1]+sorted[n/2])*0.5f else sorted[n/2]
         }
         val by=median(ballYs)
         val cy=median(cupYs)
