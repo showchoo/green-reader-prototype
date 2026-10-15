@@ -61,6 +61,27 @@ class PrecisionRawFloorCoveragePolicyTest {
         assertEquals(0,result.corridorPoints)
     }
 
+    @Test fun denseRawWithoutFloorSupportTriggersShortRangeFullSupplement() {
+        val plan=PrecisionFullDepthSupplementPolicy.plan(
+            rawAccepted=true,
+            requestedMinDepthM=0.25f,
+            requestedMaxDepthM=4.5f,
+            ballAxialDepthM=2.0f,
+            rawPointsInFrame=450,
+            rawFloorCovered=false
+        )
+        assertTrue(plan.useFull)
+        assertEquals(0.25f,plan.minDepthM,0.0001f)
+        assertFalse(PrecisionFullDepthSupplementPolicy.plan(
+            rawAccepted=true,
+            requestedMinDepthM=0.25f,
+            requestedMaxDepthM=4.5f,
+            ballAxialDepthM=2.0f,
+            rawPointsInFrame=450,
+            rawFloorCovered=true
+        ).useFull)
+    }
+
     @Test fun sourceMustBeRawNotFullForCoverageDecision() {
         val full=floorPoints().map {
             PrecisionDepthPoint(it.x,it.y,it.z,it.confidence,it.frameTimestampNs,"full")
