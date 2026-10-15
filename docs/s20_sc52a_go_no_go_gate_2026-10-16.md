@@ -87,3 +87,20 @@ User can report the measured baseline/rise/method along with “スキャンし�
 - Therefore the current data must remain `HOLD_PROTOCOL_OR_REFERENCE_INCOMPLETE`, not a claim that hardware is impossible or a claim that accuracy is proven.
 
 **Development constraint:** The v10.6 binary remains the test instrument. No follow-on numerical threshold tuning or new diagnostic APK until the independent baseline/reverse-direction benchmark establishes a concrete failure mode.
+
+
+## 2026-10-16: user-confirmed physical level, latest benchmark result
+
+**Reference update:** User explicitly reports the indoor wood floor was checked with a physical spirit level and appears level. The instrument's resolution and exact checked direction are not recorded; this establishes a near-horizontal reference, not surveyed exact 0.000%.
+
+**Latest data**: `Session_20261016_024205_8c44c70d.zip` (S20+ SC-52A, v10.6, 02:42–02:44 JST).
+
+- Nine saved scans, five numerical successes and four analysis failures.
+- Same Putt_002 / 0.956958 m baseline: signed longitudinal slopes **−2.110%, +1.989%, +1.479%, +2.084%, +4.015%**, **6.125 percentage-point spread**. All were LOW_CONFIDENCE.
+- At placement, ball and cup plane hit-test world Y were −0.6865895 m and −0.6865927 m (essentially identical). In later scan metadata the current anchor-derived cup-minus-ball elevation is +0.027231 m (2.72 cm). Anchors' **relative elevation changed** despite same initial horizontal plane; this is a concrete marker-frame consistency problem, but it does not explain Raw cloud slope variations by itself.
+- Offline per-depth-frame reconstruction near the same putt corridor (independently segmented by Raw image timestamps) showed a **24.8 cm range in camera local Y coinciding with a 22.6 cm range in reconstructed floor median Y** during the first scan (14 qualifying Raw frames; Pearson correlation approximately 1.00, regression ratio 0.90). If the same real floor is stationary, its inferred world height should not track camera elevation this way. Strong observational sign of camera-pose/depth-world alignment failure; NOT a proven isolated root cause in ARCore versus app unprojection.
+- Other scans with much smaller camera vertical motion still showed nontrivial forward and cross grades. Therefore a uniform vertical-offset subtraction is **not a demonstrated fix**.
+
+**Decision:** `CURRENT_PIPELINE_FAILS_LEVEL_FLOOR_BENCHMARK` for v10.6; the phone supports acquisition but **the app is not safe to present as a precise putting-line reader**. The absence of a quantized shim/level reference prevents a published external accuracy number, but reproducibility failure is conclusive for this app. **Hardware impossibility is not proven.**
+
+**Stop/go next:** No further blind scans or algorithm tuning. Only a single falsifiable correction that addresses (1) independent AR anchors' relative drift and (2) camera pose vs Raw depth-image temporal/alignment mismatch, verified against original floor data, may precede the final go/no-go retest. Do not force a flat-floor slope to zero by post-hoc calibration: actual greens can have arbitrary legitimate slopes.
