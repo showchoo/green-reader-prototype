@@ -104,3 +104,23 @@ User can report the measured baseline/rise/method along with “スキャンし�
 **Decision:** `CURRENT_PIPELINE_FAILS_LEVEL_FLOOR_BENCHMARK` for v10.6; the phone supports acquisition but **the app is not safe to present as a precise putting-line reader**. The absence of a quantized shim/level reference prevents a published external accuracy number, but reproducibility failure is conclusive for this app. **Hardware impossibility is not proven.**
 
 **Stop/go next:** No further blind scans or algorithm tuning. Only a single falsifiable correction that addresses (1) independent AR anchors' relative drift and (2) camera pose vs Raw depth-image temporal/alignment mismatch, verified against original floor data, may precede the final go/no-go retest. Do not force a flat-floor slope to zero by post-hoc calibration: actual greens can have arbitrary legitimate slopes.
+
+
+## Final offline correction-falsification replay (2026-10-16)
+
+The user confirmed that the same indoor flooring was checked with a **physical spirit level**. The physical reference slope wasn't quantified; treat it as near-level, not exact 0.000%.
+
+Before issuing any more experimental APKs, replayed Putt_002 Scan_01–05 from `Session_20261016_024205_8c44c70d.zip` using the archived **Raw-only** world points, signed ARCore camera/depth timestamps, and an invariant 0.02–0.20 m near-ball region:
+
+1. **Uniform per-frame vertical registration**, anchored to the median height of the same near-ball patch in each frame, reduced Scan_01 all-frame robust planar residual from **14.22 cm to 0.49 cm**; the near-ball height offsets spanned **22.44 cm**. This removes inter-frame translation discontinuity but intentionally leaves **within-frame slope unchanged**. Across all five scans, it **did not converge forward/cross grades to the level-floor reference**; do NOT silently write this correction into production.
+2. **Strict camera/depth time alignment** (`abs(frame.timestamp - depth.timestamp) <= 33 ms`), compared to the app's 250 ms acceptance: Scan_01 had **zero** qualifying Raw frames (0/14). Fresh-frame median slopes for scans 02–05 were:
+   - Scan_02: forward **+1.93%**, cross **−4.38%** (9 fresh frames).
+   - Scan_03: forward **+0.41%**, cross **−2.59%** (11 frames).
+   - Scan_04: forward **+3.32%**, cross **−4.41%** (14 frames).
+   - Scan_05: forward **+3.13%**, cross **−2.41%** (14 frames).
+   Thus a tighter age cutoff rejects one corrupted scan but **does not restore repeatability or near-level estimates**. A raw-image timestamp mismatch is not automatically a real camera-pose mismatch because ARCore can reproject Raw data.
+3. These offline fits are basic coordinate/median regressions rather than exact `PrecisionSurfaceBuilder` fits; use them for **falsifying simplistic root-cause fixes**, not a production grade.
+
+**Engineering decision:** Neither easy fix explains the residual inconsistency; **no scientifically defended single source-level correction passed offline testing**. Do not issue v10.7 merely to force a numerical PASS. Current S20+ ARCore-only precision putting pipeline should be **stopped as a commercial accuracy candidate** unless an independent calibration/reference study demonstrates a new reconstruction mechanism. Hardware-level impossibility cannot be proven; the existing app/data do not establish required sub-percent grade accuracy. Existing v10.6 remains suitable for experimental logging only, with LOW_CONFIDENCE and no dependable aim guidance.
+
+Reproducibility: `replay_camera_depth_alignment.py` (accepts a local Session ZIP), with synthetic regression/offset tests. Only anonymized aggregate results belong in public git; **do not push users' indoor camera images or full private Session ZIPs**.
