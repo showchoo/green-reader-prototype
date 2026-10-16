@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-16",
+  "device": "Galaxy S20+ SC-52A",
+  "app_version": "10.6",
+  "status": "RESEARCH_ONLY_NO_COMMERCIAL_PRECISION",
+  "session_summaries": [
+    {
+      "session": "Session_20261016_024205_8c44c70d.zip",
+      "reference": "physical spirit-level checked, no quantified millimeter rise",
+      "numeric_scans": 5,
+      "consensus_rejected": 5,
+      "frame_median_forward_pct": [
+        0.005,
+        2.47,
+        1.391,
+        3.661,
+        3.55
+      ],
+      "frame_median_cross_pct": [
+        -4.421,
+        -4.149,
+        -2.656,
+        -4.123,
+        -2.342
+      ],
+      "frame_long_spread_pp": [
+        3.921,
+        2.183,
+        3.022,
+        0.764,
+        5.594
+      ],
+      "rgb_homography_inliers": [
+        81,
+        114,
+        428,
+        186
+      ],
+      "rgb_spatial_coverage_tiles": [
+        10,
+        9,
+        16,
+        16
+      ],
+      "rgb_depth_certified": false
+    },
+    {
+      "session": "Session_20261016_020225_7b362f4f.zip",
+      "reference": "not independently quantified",
+      "numeric_scans": 6,
+      "consensus_rejected": 6,
+      "rgb_homography_inliers": [
+        126,
+        210
+      ],
+      "rgb_depth_certified": false
+    }
+  ],
+  "release_go_no_go": {
+    "arcore_depth_precision": "NO_GO",
+    "raw_frame_consensus_slope": "NO_GO",
+    "rgb_2d_tracking_indoor": "PRELIMINARY_FEASIBLE",
+    "rgb_metric_multiview_slope": "UNTESTED",
+    "s20_hardware_impossibility": "NOT_PROVEN"
+  },
+  "quality_disclaimer": "Internal stability / 2D homography matches are not calibrated ground-truth 3D heights. Do not treat research model as a putting aim recommendation."
+}
