@@ -1,0 +1,28 @@
+name: Generate RGB-research integration source
+on:
+  push:
+    branches: [research/s20-rgb-burst-apk]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  generated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Generate v10.6 sources
+        run: python scripts/build_precision_v106.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generated-source-for-rgb-research
+          path: |
+            app/src/main/java/jp/example/greenreader/MainActivity.kt
+            app/src/main/java/jp/example/greenreader/field/ScanFieldRecorder.kt
+            app/src/main/java/jp/example/greenreader/field/DriveBackupArchive.kt
+            app/src/main/java/jp/example/greenreader/field/DriveBackupScheduler.kt
+            app/src/main/java/jp/example/greenreader/precision/PrecisionDepthCollector.kt
+          if-no-files-found: error
