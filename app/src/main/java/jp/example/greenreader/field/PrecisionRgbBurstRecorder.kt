@@ -81,8 +81,8 @@ object PrecisionRgbBurstRecorder {
     private fun num(v: Float): String =
         if (v.isFinite()) String.format(Locale.US,"%.7f",v) else ""
 
-    private fun arr(v: FloatArray?): String =
-        v?.joinToString(",") { num(it) } ?: ""
+    private fun arr(v: FloatArray?, count: Int): String =
+        (v ?: FloatArray(count) { Float.NaN }).joinToString(",") { num(it) }
 
     /**
      * Caller must perform user opt-in before calling this method.
@@ -159,14 +159,14 @@ object PrecisionRgbBurstRecorder {
                 val row=idx.toString() + "," + frameTime.toString() +
                     "," + image.timestamp + "," + andCameraTime +
                     "," + image.width + "," + image.height + "," +
-                    arr(intr.focalLength) + "," +
-                    arr(intr.principalPoint) + "," +
-                    arr(intr.imageDimensions.map { it.toFloat() }.toFloatArray()) + "," +
-                    arr(poseTranslation) + "," + arr(poseQuat) + "," +
-                    arr(sensorPose?.translation) + "," +
-                    arr(sensorPose?.rotationQuaternion) + "," +
-                    arr(ballPose?.translation) + "," +
-                    arr(cupPose?.translation) + "," + frame.camera.trackingState.name
+                    arr(intr.focalLength,2) + "," +
+                    arr(intr.principalPoint,2) + "," +
+                    arr(intr.imageDimensions.map { it.toFloat() }.toFloatArray(),2) + "," +
+                    arr(poseTranslation,3) + "," + arr(poseQuat,4) + "," +
+                    arr(sensorPose?.translation,3) + "," +
+                    arr(sensorPose?.rotationQuaternion,4) + "," +
+                    arr(ballPose?.translation,3) + "," +
+                    arr(cupPose?.translation,3) + "," + frame.camera.trackingState.name
                 io.execute {
                     try {
                         val dest=File(c.dir,"rgb_" + String.format(Locale.US,"%04d",idx) + ".jpg")
@@ -209,7 +209,10 @@ object PrecisionRgbBurstRecorder {
             result?.closed=true
             result
         } ?: return
-        sensorManager?.unregisterListener(listener)
+        // Do not unregister the next scan's sensors when its predecessor
+        // is still being written on a background save thread.
+        val noActive=synchronized(lock) { active == null }
+        if (noActive) sensorManager?.unregisterListener(listener)
         // Serial executor barrier; an image's worker always finishes first.
         try { io.submit { }.get(20,TimeUnit.SECONDS) }
         catch (_:Exception) { synchronized(lock) { c.errors++ } }
