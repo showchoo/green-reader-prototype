@@ -48,3 +48,19 @@ Authorized next *research* path:
 Do not commit raw user session ZIPs or room photos to this repository. Only aggregate feasibility results and synthetic-code tests should be checked in.
 
 ARCore documentation: https://developers.google.com/ar/reference/java/com/google/ar/core/Frame and https://developers.google.com/ar/develop/java/depth/raw-depth?hl=ja
+
+## Stereo/attitude lower-order error budget (not measured S20+ precision)
+
+We calculated an **illustrative** calibrated rectified stereo model with assumed focal length 1000px and independent 25cm camera translation. Single-feature axial depth uncertainty is approximately `Z² × disparity_pixel_uncertainty / (focal_pixels × baseline)`.
+
+| Camera-to-ground distance | 0.25px disparity uncertainty | 1.0px disparity uncertainty |
+| --- | ---: | ---: |
+| 1m | 1mm | 4mm |
+| 2m | 4mm | 16mm |
+| 3m | 9mm | 36mm |
+
+Separately, uncompensated gravity direction errors of **0.1°, 0.3°, 1.0°** alone imply about **0.175pp, 0.524pp, 1.746pp** slope biases. To keep this term below 0.5pp by itself, tilt error would need to be below about **0.286°**. This does not prove such alignment is possible on the S20+, especially while moving.
+
+These figures are not actual recovered floor-height precision or an end-to-end error budget; many matched features can reduce uncorrelated noise, while lens/pose/scale/systematic errors can dominate. They illustrate why 2D feature matches must never be sold as a solved 5mm height measurement.
+
+Offline `precision_budget.py` and its synthetic tests are provided to make these assumptions explicit.
