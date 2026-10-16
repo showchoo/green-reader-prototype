@@ -65,7 +65,7 @@ def report_scan(z, prefix):
             info=z.getinfo(filename)
             if info.file_size>=1024:
                 data=z.read(filename)
-                valid=data[:2]==b"\\xff\\xd8" and data[-2:]==b"\\xff\\xd9"
+                valid=data[:2]==b"\xff\xd8" and data[-2:]==b"\xff\xd9"
         if not valid:
             missing.append(index)
         timing_deltas.append(abs(t_frame - t_image) / 1e6)
