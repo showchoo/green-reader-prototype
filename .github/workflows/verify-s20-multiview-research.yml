@@ -1,0 +1,26 @@
+name: Verify S20 multiview research
+on:
+  push:
+    branches: [research/s20-rgb-multiview-redesign]
+  pull_request:
+    branches: [research/s20-go-no-go-benchmark]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-research-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install offline geometry dependencies
+        run: python -m pip install numpy opencv-python-headless
+      - name: Synthetic planar and camera-image matching regression
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_offline_probe.py' -v
+      - name: Ensure no app version bump
+        run: |
+          test -f research/sc52a_rgb_multiview/offline_probe.py
+          test ! -f research/sc52a_rgb_multiview/private_camera.jpg
