@@ -36,7 +36,8 @@ def create_zip(path, num=16, movement=.24, skip=None, image_delta_ns=0):
             assert len(row)==len(FIELDS.split(","))
             writer.writerow(row)
             if skip != i+1:
-                z.writestr(prefix+"/rgb_%04d.jpg"%(i+1),b"\xff\xd8\xff\xd9")
+                z.writestr(prefix+"/rgb_%04d.jpg"%(i+1),
+                           b"\xff\xd8"+bytes(1200)+b"\xff\xd9")
         z.writestr(prefix+"/rgb_frames.csv",out.getvalue())
 
 
@@ -57,7 +58,39 @@ class RgbResearchArchiveTest(unittest.TestCase):
     def test_missing_image_never_passes(self):
         r=self.run_case(skip=4)
         self.assertEqual(r["status"],"INSUFFICIENT_OR_INVALID_RESEARCH_CAPTURE")
-        self.assertEqual(r["missing_jpeg_indices"],[4])
+        self.assertEqual(r["missing_or_invalid_jpeg_indices"],[4])
+
+    def test_zero_byte_jpeg_rejected_even_if_named(self):
+        with tempfile.TemporaryDirectory() as d:
+            file=Path(d)/"session.zip"
+            prefix="Putt_001/Scan_01_20261016_134000"
+            create_zip(file)
+            bad=Path(d)/"bad.zip"
+            with zipfile.ZipFile(file) as source, zipfile.ZipFile(bad,"w") as target:
+                for entry in source.infolist():
+                    payload=source.read(entry.filename)
+                    if entry.filename.endswith("/rgb_0004.jpg"):
+                        payload=b""
+                    target.writestr(entry,payload)
+            r=evaluate_zip(bad)["scans"][0]
+            self.assertEqual(r["status"],"INSUFFICIENT_OR_INVALID_RESEARCH_CAPTURE")
+            self.assertEqual(r["missing_or_invalid_jpeg_indices"],[4])
+
+    def test_declared_success_mismatch_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            file=Path(d)/"session.zip"
+            prefix="Putt_001/Scan_01_20261016_134000"
+            create_zip(file)
+            bad=Path(d)/"bad.zip"
+            with zipfile.ZipFile(file) as source, zipfile.ZipFile(bad,"w") as target:
+                for entry in source.infolist():
+                    payload=source.read(entry.filename)
+                    if entry.filename.endswith("/rgb_capture_status.json"):
+                        payload=b'{"jpeg_saved":0}'
+                    target.writestr(entry,payload)
+            r=evaluate_zip(bad)["scans"][0]
+            self.assertEqual(r["status"],"INSUFFICIENT_OR_INVALID_RESEARCH_CAPTURE")
+            self.assertFalse(r["jpeg_saved_counter_matches_manifest"])
 
     def test_high_timestamp_delta_never_passes(self):
         r=self.run_case(image_delta_ns=80_000_000)

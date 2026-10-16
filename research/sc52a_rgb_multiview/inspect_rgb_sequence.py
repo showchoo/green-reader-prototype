@@ -58,7 +58,15 @@ def report_scan(z, prefix):
                     "metric_slope_certified": False}
         indices.add(index)
         filename = prefix + "/rgb_%04d.jpg" % index
-        if filename not in z.namelist():
+        # A previous S20+ capture created 19 zero-byte JPEGs while
+        # the manifest was empty. Presence of a filename is not success.
+        valid=False
+        if filename in z.namelist():
+            info=z.getinfo(filename)
+            if info.file_size>=1024:
+                data=z.read(filename)
+                valid=data[:2]==b"\xff\xd8" and data[-2:]==b"\xff\xd9"
+        if not valid:
             missing.append(index)
         timing_deltas.append(abs(t_frame - t_image) / 1e6)
         times.append(t_frame)
@@ -75,12 +83,15 @@ def report_scan(z, prefix):
     # Same-frame CameraImage normally shares frame timestamp, but zero error
     # remains an observation rather than external ground truth.
     enough = len(rows) >= 12 and len(poses) >= 12 and baseline >= 0.12
-    structural = not missing and time_ok and max_delay <= 50.0
+    expected_saves=status.get("jpeg_saved")
+    saves_ok=(expected_saves==len(rows))
+    structural = not missing and time_ok and max_delay <= 50.0 and saves_ok
     assessment = ("READY_FOR_OFFLINE_MULTIVIEW_ATTEMPT"
                   if enough and structural else
                   "INSUFFICIENT_OR_INVALID_RESEARCH_CAPTURE")
     return {"scan": prefix, "status": assessment,
-            "frame_count": len(rows), "missing_jpeg_indices": missing,
+            "frame_count": len(rows), "missing_or_invalid_jpeg_indices": missing,
+            "jpeg_saved_counter_matches_manifest": saves_ok,
             "frame_timestamp_monotonic": time_ok,
             "duration_s": round(duration, 2),
             "observed_frame_rate_hz":
