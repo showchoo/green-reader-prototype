@@ -1,6 +1,7 @@
 package jp.example.greenreader.field
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.graphics.Rect
 import android.graphics.YuvImage
@@ -14,8 +15,9 @@ import com.google.ar.core.Frame
 import com.google.ar.core.Pose
 import com.google.ar.core.TrackingState
 import jp.example.greenreader.precision.PrecisionYuv420Nv21
+import jp.example.greenreader.precision.PrecisionNv21Rgb
 import java.io.File
-import java.io.FileOutputStream
+import java.io.ByteArrayOutputStream
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.Semaphore
@@ -53,6 +55,9 @@ object PrecisionRgbBurstRecorder {
         var droppedBusy = 0
         var droppedCrop = 0
         var errors = 0
+        var jpegNative = 0
+        var jpegFallback = 0
+        var firstEncoderError = ""
         var lastTimestampNs = 0L
     }
 
@@ -140,11 +145,22 @@ object PrecisionRgbBurstRecorder {
                     synchronized(lock) { c.droppedCrop++ }
                     return@use
                 }
-                val nv21=PrecisionYuv420Nv21.pack(image.width,image.height,
+                // CRITICAL: copy dimensions WHILE Image is still open on the
+                // ARCore GL thread. Never access image.width or image.height
+                // inside the queued worker after Image.close().
+                val cpuWidth=image.width
+                val cpuHeight=image.height
+                val nv21=PrecisionYuv420Nv21.pack(cpuWidth,cpuHeight,
                     planes[0].buffer,planes[0].rowStride,planes[0].pixelStride,
                     planes[1].buffer,planes[1].rowStride,planes[1].pixelStride,
                     planes[2].buffer,planes[2].rowStride,planes[2].pixelStride)
                 val intr=frame.camera.imageIntrinsics
+                val imageFx=intr.focalLength[0]
+                val imageFy=intr.focalLength[1]
+                val imageCx=intr.principalPoint[0]
+                val imageCy=intr.principalPoint[1]
+                val intrinsicW=intr.imageDimensions[0]
+                val intrinsicH=intr.imageDimensions[1]
                 val cameraPose=frame.camera.pose
                 val sensorPose=try { frame.androidSensorPose } catch (_:Exception) { null }
                 val andCameraTime=try { frame.androidCameraTimestamp }
@@ -169,16 +185,72 @@ object PrecisionRgbBurstRecorder {
                     arr(cupPose?.translation,3) + "," + frame.camera.trackingState.name
                 io.execute {
                     try {
-                        val dest=File(c.dir,"rgb_" + String.format(Locale.US,"%04d",idx) + ".jpg")
-                        FileOutputStream(dest).use { output ->
-                            if (!YuvImage(nv21,ImageFormat.NV21,image.width,image.height,null)
-                                    .compressToJpeg(Rect(0,0,image.width,image.height),
-                                        JPEG_QUALITY,output))
-                                throw IllegalStateException("JPEG encoder failed")
+                        // The Android Image has already been closed here.
+                        // Only immutable byte arrays, primitives and Pose
+                        // snapshots captured above may cross this boundary.
+                        val jpeg=ByteArrayOutputStream(320 * 1024)
+                        var jpegW=cpuWidth
+                        var jpegH=cpuHeight
+                        var codec="nv21"
+                        val nativeOk=try {
+                            YuvImage(nv21,ImageFormat.NV21,cpuWidth,cpuHeight,null)
+                                .compressToJpeg(Rect(0,0,cpuWidth,cpuHeight),
+                                    JPEG_QUALITY,jpeg)
+                        } catch (_:Throwable) { false }
+                        var bytes=jpeg.toByteArray()
+                        if (!nativeOk || !validJpeg(bytes)) {
+                            // Separate Android Bitmap JPEG backend: protects
+                            // against devices whose NV21 native codec fails.
+                            val rgb=PrecisionNv21Rgb.convert(nv21,cpuWidth,cpuHeight)
+                            jpegW=rgb.width
+                            jpegH=rgb.height
+                            codec="argb_fallback"
+                            val bitmap=Bitmap.createBitmap(rgb.pixels,
+                                rgb.width,rgb.height,Bitmap.Config.ARGB_8888)
+                            try {
+                                jpeg.reset()
+                                if (!bitmap.compress(Bitmap.CompressFormat.JPEG,
+                                    JPEG_QUALITY,jpeg))
+                                    throw IllegalStateException("Bitmap JPEG encode returned false")
+                                bytes=jpeg.toByteArray()
+                            } finally {
+                                bitmap.recycle()
+                            }
                         }
-                        synchronized(lock) { c.saved++; c.rows.add(row) }
-                    } catch (_:Throwable) {
-                        synchronized(lock) { c.errors++ }
+                        if (!validJpeg(bytes))
+                            throw IllegalStateException("Encoded JPEG incomplete")
+                        val dest=File(c.dir,"rgb_" +
+                            String.format(Locale.US,"%04d",idx) + ".jpg")
+                        val temp=File(c.dir,dest.name + ".part")
+                        temp.writeBytes(bytes)
+                        if (!temp.renameTo(dest)) {
+                            temp.delete()
+                            throw IllegalStateException("JPEG atomic publish failed")
+                        }
+                        // CPU image intrinsics are expressed in the native
+                        // imageIntrinsics dimensions, not necessarily JPEG
+                        // dimensions. Persist explicit rescaling.
+                        val scaleX=jpegW.toFloat()/intrinsicW.toFloat()
+                        val scaleY=jpegH.toFloat()/intrinsicH.toFloat()
+                        val fullRow=row + "," + jpegW + "," + jpegH +
+                            "," + num(imageFx*scaleX) +
+                            "," + num(imageFy*scaleY) +
+                            "," + num(imageCx*scaleX) +
+                            "," + num(imageCy*scaleY) +
+                            "," + codec
+                        synchronized(lock) {
+                            c.saved++
+                            if(codec=="nv21") c.jpegNative++ else c.jpegFallback++
+                            c.rows.add(fullRow)
+                        }
+                    } catch (t:Throwable) {
+                        synchronized(lock) {
+                            c.errors++
+                            if (c.firstEncoderError.isEmpty()) {
+                                c.firstEncoderError=t.javaClass.simpleName +
+                                    ":" + (t.message ?: "no message").take(160)
+                            }
+                        }
                     } finally {
                         permits.release()
                     }
@@ -192,6 +264,13 @@ object PrecisionRgbBurstRecorder {
             permits.release()
         }
     }
+
+    private fun validJpeg(bytes: ByteArray): Boolean =
+        bytes.size >= 1024 &&
+        (bytes[0].toInt() and 255) == 0xff &&
+        (bytes[1].toInt() and 255) == 0xd8 &&
+        (bytes[bytes.lastIndex - 1].toInt() and 255) == 0xff &&
+        (bytes[bytes.lastIndex].toInt() and 255) == 0xd9
 
     /**
      * Called on the background scan saver, after base scan content is saved
@@ -228,7 +307,12 @@ object PrecisionRgbBurstRecorder {
                 ",\"cpu_image_unavailable\":" + c.unavailable +
                 ",\"dropped_busy\":" + c.droppedBusy +
                 ",\"dropped_crop_or_format\":" + c.droppedCrop +
-                ",\"errors\":" + c.errors + "}"
+                ",\"errors\":" + c.errors +
+                ",\"native_jpeg_saved\":" + c.jpegNative +
+                ",\"fallback_jpeg_saved\":" + c.jpegFallback +
+                ",\"first_encoder_error\":\"" +
+                c.firstEncoderError.replace("\\","\\\\")
+                    .replace("\"","\\\"").replace("\n"," ") + "\"}"
         }
         val csv=File(c.dir,"rgb_frames.csv")
         csv.writeText(
@@ -237,7 +321,8 @@ object PrecisionRgbBurstRecorder {
             "camera_tx,camera_ty,camera_tz,camera_qx,camera_qy,camera_qz,camera_qw," +
             "sensor_tx,sensor_ty,sensor_tz,sensor_qx,sensor_qy,sensor_qz,sensor_qw," +
             "ball_world_x,ball_world_y,ball_world_z," +
-            "cup_world_x,cup_world_y,cup_world_z,tracking\n" +
+            "cup_world_x,cup_world_y,cup_world_z,tracking," +
+            "jpeg_width,jpeg_height,jpeg_fx,jpeg_fy,jpeg_cx,jpeg_cy,jpeg_codec\n" +
             frames.joinToString("\n",postfix=if (frames.isEmpty()) "" else "\n")
         )
         val imuFile=File(c.dir,"rgb_imu.csv")
@@ -245,7 +330,10 @@ object PrecisionRgbBurstRecorder {
             imu.joinToString("\n",postfix=if (imu.isEmpty()) "" else "\n"))
         val status=File(c.dir,"rgb_capture_status.json")
         status.writeText(summary)
-        val images=c.dir.listFiles()?.filter { it.name.matches(Regex("rgb_[0-9]{4}\\.jpg")) }
+        val images=c.dir.listFiles()?.filter {
+            it.length() >= 1024 &&
+                it.name.matches(Regex("rgb_[0-9]{4}\\.jpg"))
+        }
             ?.sortedBy { it.name } ?: emptyList()
         val export=images + listOf(csv,imuFile,status)
         var complete=true
