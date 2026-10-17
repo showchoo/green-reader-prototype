@@ -1,0 +1,49 @@
+name: Build and verify Green Reader v11.1 raw IMU research
+on:
+  push:
+    branches: [research/s20-v111-sensor-fusion-evidence]
+  pull_request:
+    branches: [research/s20-fixed-mount-gravity-reference-audit]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-signed-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate v11.1 research APK sources
+        run: python3 scripts/build_precision_v111_camera2_sensor_evidence.py
+      # The v11.0 verifier runs inside the generator BEFORE the 1110 version bump.
+      - name: Verify v11.1 extra IMU safeguards
+        run: python3 scripts/verify_precision_v111_camera2_sensor_evidence.py
+      - name: Run synthetic raw IMU offline archive audits
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_imu_evidence.py' -v
+      - name: Prepare same upgrade-compatible signing
+        run: python3 scripts/prepare_existing_signing_v73.py
+      - name: Compile and run all Android JVM unit tests
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Check package version and original certificate
+        run: |
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep "versionCode='1110'"
+          CERT="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+          test "$CERT" = "2c06a12144ece069f117dc495c49a15e14108e61167ac9befddbfd4c60919fa0"
+          cp "$APK" GreenReaderPrecision-v111-Camera2-IMU-Research-compatible.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GreenReaderPrecision-v111-Camera2-IMU-Research-compatible
+          path: GreenReaderPrecision-v111-Camera2-IMU-Research-compatible.apk
+          if-no-files-found: error
