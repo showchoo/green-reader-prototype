@@ -25,7 +25,7 @@ def build_zip(p, ranges=None, crop=False, frame_count=4):
         z.writestr(root+"/camera2_calibration.json",json.dumps(calibration))
         dest=io.StringIO()
         writer=csv.writer(dest)
-        writer.writerow("index,image_timestamp_ns,width,height")
+        writer.writerow(["index","image_timestamp_ns","width","height"])
         for i in range(1,frame_count+1):
             writer.writerow([i,i*100000000,w,h])
             if not(crop and i==3):
