@@ -21,13 +21,13 @@ def csv_text(fields,rows):
     return s.getvalue()
 
 def make_zip(path,board=False,global_shift=0,motion=0,empty_holes=False,
-             camera="4",source=1):
+             camera="4",source=1,board_touches_edges=False):
     files={};rows=[]
     for frame in range(1,6):
         data=[];valid=0
         for y in range(HEIGHT):
             for x in range(WIDTH):
-                raised=(40<=x<120 and 28<=y<92)
+                raised=(40<=x<120 and (board_touches_edges or 28<=y<92))
                 z=1200+global_shift-(50 if board and raised else 0)
                 if empty_holes and x<WIDTH*.85:z=0
                 if z>0:
@@ -85,6 +85,8 @@ class PairedBoardTests(unittest.TestCase):
             r=analyze_pair(e,b)
             self.assertEqual(r["status"],"unverified_board_like_depth_change_candidate",r)
             self.assertGreater(r["largest_component_share"],.9)
+            self.assertTrue(r["camera_orientation_guard_passed"])
+            self.assertAlmostEqual(r["unverified_candidate_optical_z_delta_median_mm"],-50,delta=2)
             self.assertAlmostEqual(r["depth_change_median_optical_z_mm"],-50,delta=2)
             self.assertFalse(r["board_identity_verified"])
             self.assertIsNone(r["measured_board_height_mm"])
@@ -113,6 +115,9 @@ class PairedBoardTests(unittest.TestCase):
             r=analyze_pair(e,b)
             self.assertEqual(r["reason"],"camera_orientation_drift_cannot_be_excluded")
             self.assertGreater(r["gravity_end_direction_delta_deg"],.15)
+            self.assertFalse(r["camera_orientation_guard_passed"])
+            self.assertGreater(r["candidate_range_change_pixels"],0)
+            self.assertFalse(r["board_identity_verified"])
 
     def test_unknown_camera_clock_cannot_certify_alignment(self):
         with tempfile.TemporaryDirectory() as d:
@@ -132,6 +137,16 @@ class PairedBoardTests(unittest.TestCase):
             make_zip(e);make_zip(b,board=True,empty_holes=True)
             r=analyze_pair(e,b)
             self.assertEqual(r["reason"],"insufficient_valid_common_depth")
+
+    def test_image_edge_clipping_is_refused_but_difference_reported(self):
+        with tempfile.TemporaryDirectory() as d:
+            e,b=Path(d)/"empty.zip",Path(d)/"board.zip"
+            make_zip(e);make_zip(b,board=True,board_touches_edges=True)
+            r=analyze_pair(e,b)
+            self.assertEqual(r["status"],"unresolved")
+            self.assertEqual(r["reason"],"depth_change_touches_image_edge")
+            self.assertGreater(r["candidate_range_change_pixels"],0)
+            self.assertFalse(r["physical_grade_accuracy_certified"])
 
     def test_same_file_cannot_be_empty_and_board(self):
         with tempfile.TemporaryDirectory() as d:
