@@ -28,6 +28,8 @@ jobs:
       # The v11.0 verifier runs inside the generator BEFORE the 1110 version bump.
       - name: Verify v11.1 extra IMU safeguards
         run: python3 scripts/verify_precision_v111_camera2_sensor_evidence.py
+      - name: Run synthetic raw IMU offline archive audits
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_imu_evidence.py' -v
       - name: Prepare same upgrade-compatible signing
         run: python3 scripts/prepare_existing_signing_v73.py
       - name: Compile and run all Android JVM unit tests
