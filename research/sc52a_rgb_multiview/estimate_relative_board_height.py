@@ -76,7 +76,10 @@ def analyze_depth_pair(empty_mm,board_mm,intrinsics,real_measured_height_mm=None
     ray=np.sqrt(1+xn*xn+yn*yn)
     valid=np.isfinite(empty_mm)&np.isfinite(board_mm)
     delta_z=(board_mm-empty_mm)/ray
-    candidate=valid&(delta_z<=-25)&(delta_z>=-130)
+    # Broad, measured-height-INDEPENDENT image-space search range. At a
+    # grazing camera angle a 100mm physical rise can exceed 130mm optical-Z.
+    # This threshold is for *discovery*, never proof of board identity.
+    candidate=valid&(delta_z<=-25)&(delta_z>=-250)
     labels,n=ndi.label(candidate,structure=np.array([[0,1,0],[1,1,1],[0,1,0]]))
     if n<1:raise ValueError("No connected depth-change candidate")
     areas=np.bincount(labels.ravel())
@@ -103,6 +106,7 @@ def analyze_depth_pair(empty_mm,board_mm,intrinsics,real_measured_height_mm=None
     unknown_frac=unseen/boundary_len if boundary_len else 1.
     report={
         "status":"preliminary_unverified_depth_difference",
+        "candidate_search_range_optical_z_mm":[-250,-25],
         "candidate_identified_as_physical_board":False,
         "camera_translation_independently_verified":False,
         "camera_yaw_independently_verified":False,
