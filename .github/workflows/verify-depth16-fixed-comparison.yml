@@ -1,0 +1,28 @@
+name: Verify fixed SC-52A depth comparison
+on:
+  push:
+    branches: [research/s20-depth16-fixed-vs-handheld]
+  pull_request:
+    branches: [research/s20-depth16-real-quality-audit]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-comparison-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install independent numpy
+        run: python -m pip install numpy
+      - name: Test fail-closed fixed-versus-handheld comparisons
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_compare_depth16_fixed.py' -v
+      - name: Test prior depth binary decoder regressions
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_confidence.py' -v
+      - name: Avoid committing private range maps
+        run: |
+          test ! -f research/sc52a_rgb_multiview/private_depth.bin
+          grep -q 'commercial_putting_accuracy_certified=False' research/sc52a_rgb_multiview/compare_depth16_fixed.py
