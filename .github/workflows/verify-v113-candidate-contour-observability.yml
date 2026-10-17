@@ -1,0 +1,23 @@
+name: Verify v11.3 board candidate contour observability
+on:
+  push:
+    branches: [research/s20-v113-paired-candidate-observability]
+  pull_request:
+    branches: [research/s20-v113-depth-visibility-dropout]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-board-contours:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test board image contour including blind-zone false positives
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_paired_elevated_board.py' -v
+      - name: Preserve depth uncertainty and IMU regression checks
+        run: |
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_confidence_stability.py' -v
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_imu_stability.py' -v
+      - name: Compile source
+        run: python3 -m py_compile research/sc52a_rgb_multiview/audit_paired_elevated_board.py
