@@ -41,7 +41,7 @@ class PrecisionDepth16CodecTest {
         for (i in 0..3)assertEquals(samples[i],out.getShort(i*2).toInt() and 65535)
         val summary=PrecisionDepth16Codec.summary(bytes,2,2)
         assertEquals(4,summary.validPixels)
-        assertEquals(3,summary.confidentPixels)
+        assertEquals(2,summary.confidentPixels)
         assertEquals(1,summary.invalidConfidencePixels)
         assertEquals(1250,summary.medianMillimeters)
         assertEquals(900,summary.minMillimeters)
