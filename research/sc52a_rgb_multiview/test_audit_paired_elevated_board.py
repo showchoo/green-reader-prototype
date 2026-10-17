@@ -117,7 +117,7 @@ class PairedBoardTests(unittest.TestCase):
     def test_unknown_camera_clock_cannot_certify_alignment(self):
         with tempfile.TemporaryDirectory() as d:
             e,b=Path(d)/"e.zip",Path(d)/"b.zip"
-            make_zip(e);make_zip(b,board=True,source=0)
+            make_zip(e,source=0);make_zip(b,board=True,source=0)
             self.assertEqual(analyze_pair(e,b)["reason"],"imu_evidence_insufficient")
 
     def test_distinct_camera_identity_blocks_pair(self):
