@@ -1,0 +1,24 @@
+name: Verify v11.3 depth visibility and board-pair research
+on:
+  push:
+    branches: [research/s20-v113-depth-visibility-dropout]
+  pull_request:
+    branches: [research/s20-v113-paired-board-difference-audit]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-depth-dropout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test paired depth and blindness diagnostics (synthetic only)
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_paired_elevated_board.py' -v
+      - name: Test depth confidence and IMU synthetic probes
+        run: |
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_confidence_stability.py' -v
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_imu_stability.py' -v
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_annotated_board_roi.py' -v
+      - name: Syntax
+        run: python3 -m py_compile research/sc52a_rgb_multiview/audit_paired_elevated_board.py
