@@ -1,0 +1,21 @@
+name: Verify v11.1 DEPTH16 confidence evidence offline
+on:
+  push:
+    branches: [research/s20-v112-depth16-confidence-evidence]
+  pull_request:
+    branches: [research/s20-v111-imu-stability-audit]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-depth16-confidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run depth16 confidence / repeatability synthetic tests
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_confidence_stability.py' -v
+      - name: Preserve IMU stability regressions
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_imu_stability.py' -v
+      - name: Check offline script syntax
+        run: python3 -m py_compile research/sc52a_rgb_multiview/audit_depth16_confidence_stability.py
