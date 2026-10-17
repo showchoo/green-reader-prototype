@@ -1,0 +1,53 @@
+name: Build and verify Green Reader v11.2 live DEPTH16 preview
+on:
+  push:
+    branches: [research/s20-v112-live-depth-preview]
+  pull_request:
+    branches: [research/s20-v111-private-depth-annotation-viewer]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-v112-research-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate v11.2 live research sources
+        run: python3 scripts/build_precision_v112_depth_preview.py
+      - name: Verify v11.2 static preview and capture invariants
+        run: python3 scripts/verify_precision_v112_depth_preview.py
+      - name: Verify synthetic offline depth and annotation research
+        run: |
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_render_private_depth_annotation.py' -v
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_confidence_stability.py' -v
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_annotated_board_roi.py' -v
+      - name: Restore upgrade-compatible signing
+        run: python3 scripts/prepare_existing_signing_v73.py
+      - name: Run Android JVM tests and compile APK
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Verify original certificate, version, and package
+        run: |
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee /tmp/v112.badging
+          grep -q "versionCode='1120'" /tmp/v112.badging
+          grep -q "name='jp.showchoo.greenreader.precision'" /tmp/v112.badging
+          CERT="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+          test "$CERT" = "2c06a12144ece069f117dc495c49a15e14108e61167ac9befddbfd4c60919fa0"
+          cp "$APK" GreenReaderPrecision-v112-LiveDepthPreview-compatible.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GreenReaderPrecision-v112-LiveDepthPreview-compatible
+          path: GreenReaderPrecision-v112-LiveDepthPreview-compatible.apk
+          if-no-files-found: error
