@@ -58,3 +58,25 @@ The `reconstruct_rgb_plane.py` research CLI is a reproducible, privacy-preservin
 4. If physically verified median grade error >0.5pp or repeat span >0.5pp remains, **do not release putting guidance**. Consider a different sensing modality or a less precise product rather than an endless camera-version churn.
 
 Do not claim `ARCore VIO camera pose + RGB` is independent ground truth: the camera poses share a tracking stack with earlier ARCore diagnostics. An independent image-only pose estimate also has a planar homography/metric-scale ambiguity unless anchored to physical distance and gravity.
+
+
+## Pose refinement / model identifiability (offline follow-on)
+
+A separate research-only **planar bundle adjustment** fit the image correspondences across eight sampled views. It optimized one arbitrary planar floor and small camera pose corrections using a soft ARCore VIO pose prior and smoothness regularization, while withholding 1/4 of image pairs from fitting. It did **not** assume the plane is horizontal in its free-slope trial.
+
+- Without pose refinement: held-out median image correspondence residual **3.08 pixels**.
+- With free-slope planar pose refinement: held-out median **0.568 pixels**, fitted longitudinal grade **−3.24%**; maximum camera correction ~**1.09cm** translation and **0.64°** rotation.
+- **Identifiability stress test**: artificially constrain the **hypothetical** longitudinal grade, independently reoptimize small camera pose corrections, and compare held-out image reprojection. These are NOT floor measurements:
+
+| Hypothetical fixed grade | Held-out median reprojection | Max pose-angle correction | Max pose-position correction |
+| --- | ---: | ---: | ---: |
+| −1.5% | 0.583px | 0.37° | 1.13cm |
+| 0.0% | 0.594px | 0.32° | 1.15cm |
+| +1.5% | 0.642px | 0.54° | 1.21cm |
+| +3.5% | 0.710px | 0.99° | 1.34cm |
+
+**Critical observation:** The archived image sequence has enough apparent flexibility in modest camera-pose adjustments to explain grade hypotheses differing by several percentage points while leaving substantially subpixel reprojection residuals. Even *with* held-out image checks, low reprojection error does **not uniquely identify** the floor's longitudinal grade to 0.5pp. This demonstration depends on assumed regularization scale, planar geometry and feature masks; it is strong diagnostic evidence of poor identifiability under the present pose constraints, **not a mathematical impossibility proof for future sensors/algorithms**.
+
+An independent physical gravity/pose constraint with verified uncertainty smaller than ~0.286° for a 0.5pp *tilt-only* error budget, plus independent scene geometry/scale, would be needed before another putting-grade claim. Such precision has **not** been verified from this phone's ARCore/IMU outputs. Do not impose a 0% floor prior in production to make images seem accurate: it would suppress legitimate green slopes.
+
+**Engineering decision remains NO-GO for precise putting lines.** Retain v10.8 solely as a private RGB/IMU research recorder. Avoid additional identical uncalibrated floor scans. Further work must validate an independent metric reference, sensor, or externally surveyed trajectory before user testing.
