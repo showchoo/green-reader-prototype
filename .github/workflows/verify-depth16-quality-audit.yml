@@ -1,0 +1,28 @@
+name: Verify SC-52A depth quality research
+on:
+  push:
+    branches: [research/s20-depth16-real-quality-audit]
+  pull_request:
+    branches: [research/s20-camera2-depth16-acquisition]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-depth16-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install research dependency
+        run: python -m pip install numpy
+      - name: Synthetic direct DEPTH16 confidence and temporal regressions
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_confidence.py' -v
+      - name: Existing raw DEPTH16 ZIP parsing regressions
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_inspect_camera2_depth16.py' -v
+      - name: Confirm no user room range maps in research sources
+        run: |
+          test ! -f research/sc52a_rgb_multiview/private_depth.bin
+          grep -q 'commercial_grade_ready=False' research/sc52a_rgb_multiview/audit_depth16_confidence.py
