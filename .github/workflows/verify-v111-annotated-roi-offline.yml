@@ -1,0 +1,23 @@
+name: Verify v11.1 manual ROI plane diagnostics
+on:
+  push:
+    branches: [research/s20-v111-annotated-board-roi-audit]
+  pull_request:
+    branches: [research/s20-v111-depth16-surface-identifiability]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-annotated-roi:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate annotated ROI synthetic plane and fail-closed tests
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_annotated_board_roi.py' -v
+      - name: Retain synthetic surface identifiability tests
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_surface_identifiability.py' -v
+      - name: Retain depth confidence tests
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_confidence_stability.py' -v
+      - name: Check new CLI syntax
+        run: python3 -m py_compile research/sc52a_rgb_multiview/audit_annotated_board_roi.py
