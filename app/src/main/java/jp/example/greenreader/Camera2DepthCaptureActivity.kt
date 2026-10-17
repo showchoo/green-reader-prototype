@@ -25,6 +25,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import jp.example.greenreader.field.Camera2DepthArchive
 import jp.example.greenreader.precision.PrecisionDepth16Codec
+import jp.example.greenreader.precision.Camera2SensorEvidence
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -63,18 +64,37 @@ class Camera2DepthCaptureActivity:AppCompatActivity() {
     private val savedFrames=ArrayList<File>()
     private val records=ArrayList<String>()
     private val gravities=ArrayList<String>()
+    private val sensorEvidence=Camera2SensorEvidence()
+    private val requestedSensors=linkedMapOf<String,Boolean>()
+    private val registeredSensors=linkedMapOf<String,Boolean>()
+    private var cameraTimestampSource:Int?=null
+    private var sensorStartElapsedNs:Long?=null
     private lateinit var temporaryDir:File
     private lateinit var manager:CameraManager
     private var sensorManager:SensorManager?=null
     private val listener=object:SensorEventListener {
         override fun onAccuracyChanged(sensor:Sensor?,accuracy:Int){}
         override fun onSensorChanged(event:SensorEvent) {
-            if(finishing || gravities.size>=3000 || event.values.size<3)return
-            val v=event.values
-            gravities.add(event.timestamp.toString()+","+
-                SystemClock.elapsedRealtimeNanos()+","+
-                String.format(Locale.US,"%.7f,%.7f,%.7f",v[0],v[1],v[2])+
-                ","+event.accuracy)
+            if(finishing || event.values.size<3)return
+            val kind=when(event.sensor.type) {
+                Sensor.TYPE_GRAVITY -> Camera2SensorEvidence.GRAVITY
+                Sensor.TYPE_ACCELEROMETER -> Camera2SensorEvidence.ACCELEROMETER
+                Sensor.TYPE_GYROSCOPE -> Camera2SensorEvidence.GYROSCOPE
+                Sensor.TYPE_GYROSCOPE_UNCALIBRATED ->
+                    Camera2SensorEvidence.GYROSCOPE_UNCALIBRATED
+                else -> return
+            }
+            val callbackNs=SystemClock.elapsedRealtimeNanos()
+            sensorEvidence.add(kind,event.timestamp,callbackNs,
+                event.values,event.accuracy)
+            // Legacy v11.0 file is preserved, with unchanged columns/order.
+            if(kind==Camera2SensorEvidence.GRAVITY && gravities.size<3000) {
+                val v=event.values
+                gravities.add(event.timestamp.toString()+","+
+                    callbackNs+","+
+                    String.format(Locale.US,"%.7f,%.7f,%.7f",v[0],v[1],v[2])+
+                    ","+event.accuracy)
+            }
         }
     }
 
@@ -132,8 +152,32 @@ class Camera2DepthCaptureActivity:AppCompatActivity() {
             return
         }
         setStatus("ARCoreがカメラを解放するまで準備しています…")
+        worker.post { registerResearchSensors() }
         ui.postDelayed({if(!finishing)requestFinish("watchdog_timeout")},WATCHDOG_MS)
         ui.postDelayed({if(!finishing)worker.post {openCamera()}},START_DELAY_MS)
+    }
+
+    private fun registerResearchSensors() {
+        // Register before Camera2 opening so early filter convergence is visible.
+        sensorStartElapsedNs=SystemClock.elapsedRealtimeNanos()
+        val requirements=listOf(
+            Sensor.TYPE_GRAVITY to Camera2SensorEvidence.GRAVITY,
+            Sensor.TYPE_ACCELEROMETER to Camera2SensorEvidence.ACCELEROMETER,
+            Sensor.TYPE_GYROSCOPE to Camera2SensorEvidence.GYROSCOPE,
+            Sensor.TYPE_GYROSCOPE_UNCALIBRATED to
+                Camera2SensorEvidence.GYROSCOPE_UNCALIBRATED
+        )
+        for((type,name) in requirements) {
+            val sensor=sensorManager?.getDefaultSensor(type)
+            requestedSensors[name]=sensor!=null
+            val registered=if(sensor!=null) {
+                try {
+                    sensorManager?.registerListener(
+                        listener,sensor,SensorManager.SENSOR_DELAY_GAME,worker)==true
+                } catch(_:Exception) { false }
+            } else false
+            registeredSensors[name]=registered
+        }
     }
 
     private fun getCalibration(
@@ -204,12 +248,10 @@ class Camera2DepthCaptureActivity:AppCompatActivity() {
             width=size.width
             height=size.height
             calibration=getCalibration(cameraId,selected.second,width,height)
+            cameraTimestampSource=selected.second.get(
+                CameraCharacteristics.SENSOR_INFO_TIMESTAMP_SOURCE)
             reader=ImageReader.newInstance(width,height,ImageFormat.DEPTH16,2)
                 .also {r->r.setOnImageAvailableListener({onImage(it = r)},worker)}
-            val g=sensorManager?.getDefaultSensor(Sensor.TYPE_GRAVITY)
-            if(g!=null)sensorManager?.registerListener(
-                listener,g,SensorManager.SENSOR_DELAY_GAME,worker)
-            else recordError("gravity_sensor_unavailable")
             setStatus("DEPTH16カメラ ID "+cameraId+" ("+width+"×"+height+
                 ") を開いています…")
             manager.openCamera(cameraId,object:CameraDevice.StateCallback() {
@@ -311,7 +353,8 @@ class Camera2DepthCaptureActivity:AppCompatActivity() {
                     (stats.medianMillimeters?.toString()?:"")+","+
                     (stats.maxMillimeters?.toString()?:"")+","+
                     String.format(Locale.US,"%.6f,%.6f",
-                        stats.coverage,stats.confidentCoverage))
+                        stats.coverage,stats.confidentCoverage)+","+
+                    SystemClock.elapsedRealtimeNanos())
                 setStatus("DEPTH16 "+frameCount+"/"+MAX_FRAMES+
                     " 保存。距離の有効画素 "+String.format(Locale.US,"%.1f%%",
                         stats.coverage*100)+", 中央値 "+
@@ -339,15 +382,41 @@ class Camera2DepthCaptureActivity:AppCompatActivity() {
             val data=savedFrames.toList()
             val frameCsv="index,image_timestamp_ns,width,height,valid_pixels,"+
                 "confident_pixels,min_mm,median_mm,max_mm,coverage,"+
-                "confident_coverage\n"+
+                "confident_coverage,callback_elapsed_ns\n"+
                 records.joinToString("\n",postfix=if(records.isEmpty())"" else "\n")
             val gravityCsv="sensor_timestamp_ns,callback_elapsed_ns,"+
                 "gx,gy,gz,accuracy\n"+
                 gravities.joinToString("\n",
                     postfix=if(gravities.isEmpty())"" else "\n")
-            val summary=JSONObject()
+            val sensorCsv=sensorEvidence.csv()
+            val sensorMetadata=JSONObject()
                 .put("schema_version",1)
+                .put("kind","CAMERA2_DIRECT_DEPTH_IMU_DIAGNOSTICS")
+                .put("requested_sensor_available",JSONObject(requestedSensors.toMap()))
+                .put("sensor_listener_registered",JSONObject(registeredSensors.toMap()))
+                .put("per_sensor_sample_count",JSONObject(sensorEvidence.sampleCounts()))
+                .put("per_sensor_cap_dropped",JSONObject(sensorEvidence.droppedCounts()))
+                .put("per_sensor_out_of_order_dropped",
+                    JSONObject(sensorEvidence.outOfOrderCounts()))
+                .put("register_start_elapsed_ns",sensorStartElapsedNs)
+                .put("first_sensor_callback_elapsed_ns",
+                    sensorEvidence.firstCallbackElapsedNs)
+                .put("last_sensor_callback_elapsed_ns",
+                    sensorEvidence.lastCallbackElapsedNs)
+                .put("camera_timestamp_source",cameraTimestampSource)
+                .put("camera_vs_sensor_timestamp_comparable",
+                    cameraTimestampSource==
+                        CameraMetadata.SENSOR_INFO_TIMESTAMP_SOURCE_REALTIME)
+                .put("physical_camera_motion_certified",false)
+                .put("absolute_grade_accuracy_certified",false)
+                .put("note","Sensor timestamps are monotonic. Camera timestamp"+
+                    " comparability requires Camera2 REALTIME; gyro/accel do not"+
+                    " independently prove world-frame orientation.").toString(2)
+            val summary=JSONObject()
+                .put("schema_version",2)
                 .put("kind","CAMERA2_DEPTH16_DIRECT_CAPTURE")
+                .put("raw_imu_evidence_saved",true)
+                .put("physical_gravity_reference_verified",false)
                 .put("camera_id",cameraId)
                 .put("width",width).put("height",height)
                 .put("frame_count",frameCount)
@@ -360,7 +429,7 @@ class Camera2DepthCaptureActivity:AppCompatActivity() {
                 try {
                     val dest=Camera2DepthArchive.save(
                         applicationContext,calibration,data,frameCsv,
-                        gravityCsv,summary)
+                        gravityCsv,summary,sensorCsv,sensorMetadata)
                     ui.post {
                         finalized=true
                         if(!isFinishing && !isDestroyed) {
