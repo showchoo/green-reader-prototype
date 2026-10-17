@@ -1,0 +1,23 @@
+name: Verify depth-only surface identifiability research
+on:
+  push:
+    branches: [research/s20-v111-depth16-surface-identifiability]
+  pull_request:
+    branches: [research/s20-v112-depth16-confidence-evidence]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-surface-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test conservative surface isolation failures and positive synthetic geometry
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_surface_identifiability.py' -v
+      - name: Verify earlier DEPTH16 confidence research
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_confidence_stability.py' -v
+      - name: Verify earlier IMU research
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_imu_stability.py' -v
+      - name: Syntax and compilation check (offline Python only)
+        run: python3 -m py_compile research/sc52a_rgb_multiview/audit_depth16_surface_identifiability.py
