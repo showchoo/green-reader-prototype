@@ -1,0 +1,30 @@
+name: Research DEPTH16 background reference quality
+on:
+  push:
+    branches: [research/s20-depth16-background-reference-qc]
+  pull_request:
+    branches: [research/s20-known-2pct-ground-truth-gate]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  no-false-precision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install open-source analysis dependencies
+        run: python -m pip install numpy opencv-python-headless
+      - name: Test background-normal alignment and ambiguity
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_compare_static_background_references.py' -v
+      - name: Check separate axial versus radial model tests
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_compare_depth_geometry_models.py' -v
+      - name: Test independent rise-run physical uncertainty gate
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_physical_grade_reference_gate.py' -v
+      - name: Keep uncertain physical calibration fail closed
+        run: |
+          grep -q '"grade_accuracy_certified":False' research/sc52a_rgb_multiview/compare_static_background_references.py
+          grep -q 'known_grade_reference_available' research/sc52a_rgb_multiview/compare_static_background_references.py
