@@ -22,7 +22,8 @@ def csv_text(fields,rows):
 
 def make_zip(path,board=False,global_shift=0,motion=0,empty_holes=False,
              camera="4",source=1,board_touches_edges=False,
-             board_depth_disappears=False,baseline_left_blind=False):
+             board_depth_disappears=False,baseline_left_blind=False,
+             narrow_blind_adjacent=False):
     files={};rows=[]
     for frame in range(1,6):
         data=[];valid=0
@@ -31,6 +32,7 @@ def make_zip(path,board=False,global_shift=0,motion=0,empty_holes=False,
                 raised=(40<=x<120 and (board_touches_edges or 28<=y<92))
                 z=1200+global_shift-(50 if board and raised else 0)
                 if baseline_left_blind and x<40:z=0
+                if narrow_blind_adjacent and x<40 and 28<=y<92:z=0
                 if board and raised and board_depth_disappears:z=0
                 if empty_holes and x<WIDTH*.85:z=0
                 if z>0:
@@ -89,6 +91,8 @@ class PairedBoardTests(unittest.TestCase):
             self.assertEqual(r["status"],"unverified_board_like_depth_change_candidate",r)
             self.assertGreater(r["largest_component_share"],.9)
             self.assertTrue(r["camera_orientation_guard_passed"])
+            self.assertTrue(r["candidate_four_sides_observable"],r)
+            self.assertEqual(r["candidate_boundary_edges_unobserved"],0)
             self.assertAlmostEqual(r["unverified_candidate_optical_z_delta_median_mm"],-50,delta=2)
             self.assertAlmostEqual(r["depth_change_median_optical_z_mm"],-50,delta=2)
             self.assertFalse(r["board_identity_verified"])
@@ -150,6 +154,18 @@ class PairedBoardTests(unittest.TestCase):
             self.assertEqual(r["reason"],"depth_change_touches_image_edge")
             self.assertGreater(r["candidate_range_change_pixels"],0)
             self.assertFalse(r["physical_grade_accuracy_certified"])
+
+    def test_interior_candidate_touching_blind_zone_is_not_four_side_verified(self):
+        with tempfile.TemporaryDirectory() as d:
+            e,b=Path(d)/"empty.zip",Path(d)/"board.zip"
+            make_zip(e,narrow_blind_adjacent=True)
+            make_zip(b,board=True,narrow_blind_adjacent=True)
+            r=analyze_pair(e,b)
+            self.assertEqual(r["status"],"unresolved",r)
+            self.assertEqual(r["reason"],"candidate_boundary_depth_unobserved",r)
+            self.assertGreater(r["candidate_boundary_unobserved_fraction"],.1)
+            self.assertFalse(r["candidate_four_sides_observable"])
+            self.assertFalse(r["board_identity_verified"])
 
     def test_depth_disappearance_is_recorded_without_inventing_a_height(self):
         with tempfile.TemporaryDirectory() as d:
