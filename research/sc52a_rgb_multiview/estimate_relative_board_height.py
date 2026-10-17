@@ -49,7 +49,7 @@ def fit_normal_from_empty(empty_mm,mask,xn,yn,ray):
     sampled=np.zeros_like(mask,dtype=bool)
     sampled[::4,::4]=True
     m=mask & sampled & np.isfinite(empty_mm)
-    if m.sum()<100:raise ValueError("Too few floor samples for normal fit")
+    if m.sum()<40:raise ValueError("Too few floor samples for normal fit")
     z=empty_mm[m]/ray[m]
     xyz=np.column_stack((xn[m]*z,yn[m]*z,z))
     matrix=np.column_stack((xyz[:,0],xyz[:,1],np.ones(len(xyz))))
