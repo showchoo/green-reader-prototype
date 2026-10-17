@@ -430,12 +430,20 @@ class Camera2DepthCaptureActivity:AppCompatActivity() {
                     val dest=Camera2DepthArchive.save(
                         applicationContext,calibration,data,frameCsv,
                         gravityCsv,summary,sensorCsv,sensorMetadata)
+                    val counts=sensorEvidence.sampleCounts()
+                    val imuStatus="加速度 "+
+                        (counts[Camera2SensorEvidence.ACCELEROMETER]?:0)+
+                        "件 / ジャイロ "+
+                        (counts[Camera2SensorEvidence.GYROSCOPE]?:0)+
+                        "件 / 重力 "+
+                        (counts[Camera2SensorEvidence.GRAVITY]?:0)+"件"
                     ui.post {
                         finalized=true
                         if(!isFinishing && !isDestroyed) {
                             status.text="DEPTH16取得結果を保存しました。\n"+
                                 "フレーム "+frameCount+" / "+MAX_FRAMES+
                                 " / エラー "+errorCount+"件\n"+
+                                imuStatus+"\n"+
                                 "保存先: "+dest.savedFolder+
                                 "\n既存のDrive自動保存がONなら同期します。\n"+
                                 "距離精度・ToF実体は未検証です。"
