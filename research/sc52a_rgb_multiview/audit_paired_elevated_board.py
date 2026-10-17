@@ -111,8 +111,11 @@ def analyze_pair(empty_zip,board_zip):
                  ib["directional_streams"]["accelerometer"]["capture_end_median_xyz"])
     result["gravity_end_direction_delta_deg"]=round0(ga,5)
     result["accelerometer_end_direction_delta_deg"]=round0(aa,5)
-    if ga is None or aa is None or ga>MAX_GRAVITY_DIFFERENCE_DEG or aa>MAX_ACCELEROMETER_DIFFERENCE_DEG:
-        result["reason"]="camera_orientation_drift_cannot_be_excluded";return result
+    # Even when the pose guard fails, compute READ-ONLY image difference
+    # evidence for debugging. Never promote it to a verified board candidate.
+    orientation_guard_passed=(ga is not None and aa is not None and
+        ga<=MAX_GRAVITY_DIFFERENCE_DEG and aa<=MAX_ACCELEROMETER_DIFFERENCE_DEG)
+    result["camera_orientation_guard_passed"]=orientation_guard_passed
     width,height=e["width"],e["height"]
     fx,fy,cx,cy=map(float,intr[:4])
     required_e=max(3,math.ceil(len(e["raw_frames"])*MIN_RETAINED_FRACTION))
@@ -138,7 +141,10 @@ def analyze_pair(empty_zip,board_zip):
     result["sampled_grid_pixels"]=total
     result["paired_valid_fraction"]=round0(valid_pairs/total)
     result["candidate_range_change_pixels"]=len(candidates)
+    result["unverified_candidate_optical_z_delta_median_mm"]=round0(percentile(
+        [d for d in deltas if BOARD_Z_DELTA_RANGE[0]<=d<=BOARD_Z_DELTA_RANGE[1]],50),3)
     result["near_zero_background_pixels"]=len(background)
+    result["image_space_evidence_only"]=True
     if valid_pairs<total*MIN_VALID_PAIR_FRACTION:
         result["reason"]="insufficient_valid_common_depth";return result
     if len(background)<valid_pairs*MIN_BACKGROUND_FRACTION:
@@ -167,6 +173,8 @@ def analyze_pair(empty_zip,board_zip):
         result["reason"]="depth_change_touches_image_edge";return result
     result["depth_change_median_optical_z_mm"]=round0(
         percentile([d for d in deltas if BOARD_Z_DELTA_RANGE[0]<=d<=BOARD_Z_DELTA_RANGE[1]],50),3)
+    if not orientation_guard_passed:
+        result["reason"]="camera_orientation_drift_cannot_be_excluded";return result
     result["status"]="unverified_board_like_depth_change_candidate"
     result["reason"]="image_change_observed_but_physical_board_and_pose_unproven"
     return result
