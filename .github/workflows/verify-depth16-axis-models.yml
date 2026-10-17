@@ -1,0 +1,28 @@
+name: Validate S20 DEPTH16 geometric hypotheses
+on:
+  push:
+    branches: [research/s20-depth16-axis-model-validation]
+  pull_request:
+    branches: [research/s20-depth16-fixed-vs-handheld]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  geometric-model-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install test-only geometry tools
+        run: python -m pip install numpy opencv-python-headless
+      - name: Run synthetic axial/radial known-plane tests
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_compare_depth_geometry_models.py' -v
+      - name: Verify synthetic measured-shim normal change
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_evaluate_measured_incline_pair.py' -v
+      - name: Prevent implicit slope certification
+        run: |
+          grep -q 'accuracy_certified.*False' research/sc52a_rgb_multiview/compare_depth_geometry_models.py
+          test ! -f research/sc52a_rgb_multiview/private_depth.bin
