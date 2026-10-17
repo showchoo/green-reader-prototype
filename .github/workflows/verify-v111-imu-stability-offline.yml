@@ -1,0 +1,23 @@
+name: Verify v11.1 IMU stability offline research
+on:
+  push:
+    branches:
+      - research/s20-v111-imu-stability-audit
+  pull_request:
+    branches:
+      - research/s20-v111-sensor-fusion-evidence
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-imu-stability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run previous v11.1 archive regression tests
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_imu_evidence.py' -v
+      - name: Run new timestamp-gated stability regression tests
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_imu_stability.py' -v
+      - name: Check standalone CLI syntax
+        run: python3 -m py_compile research/sc52a_rgb_multiview/audit_depth16_imu_stability.py
