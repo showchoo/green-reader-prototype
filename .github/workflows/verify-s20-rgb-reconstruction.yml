@@ -1,0 +1,26 @@
+name: Verify RGB multiview reconstruction research
+on:
+  push:
+    branches: [research/s20-rgb-multiview-evaluation]
+  pull_request:
+    branches: [research/s20-rgb-jpeg-repair]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-rgb-stereo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install open-source geometry tools
+        run: python -m pip install numpy scipy opencv-python-headless
+      - name: Run all offline research synthetic tests
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_*.py' -v
+      - name: Verify privacy and non-certification
+        run: |
+          grep -q '"metric_slope_certified":False' research/sc52a_rgb_multiview/reconstruct_rgb_plane.py
+          test ! -f research/sc52a_rgb_multiview/private_camera.jpg
