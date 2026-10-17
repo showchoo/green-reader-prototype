@@ -1,5 +1,7 @@
 # Real SC-52A reference experiment — level vs 2% (2026-10-17)
 
+**CORRECTION (later user clarification):** The target was cardboard and the lift used stacked cardboard, probably exceeding 2 cm; support spacing and actual height were not measured. The intended 2% grade is not independent ground truth. Therefore 5.40% minus nominal 2.00% is not a validated measurement error; **physical accuracy assessment is INCONCLUSIVE**, not FAIL. See `CORRECTION_20261017_UNMEASURED_CARDBOARD_REFERENCE.md`.
+
 ## Data and provenance
 
 The user reported completing a level-board followed by a 2%-inclined board acquisition with v11.0 Camera2. Private, user-owned Drive archives (do NOT commit): `Session_HW_DEPTH_20261017_232314_973.zip` (23:23 JST, treated as level), and `Session_HW_DEPTH_20261017_232350_431.zip` (treated as 2%). Both are 640×480 direct Camera2 DEPTH16, 12/12 captured, zero errors; first frame empty, 11 valid in each. Camera intrinsics, calibration metadata, and image dimensions are identical. Source Drive IDs: `10slgsZ6shhzcf3OYxoLD6UmPLY4KIbVk` and `1Ccc4f2YDIMbJj6givNduIgqhZskIqkkH`.
