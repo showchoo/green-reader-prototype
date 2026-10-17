@@ -1,0 +1,26 @@
+name: Verify S20 fixed-mount gravity reference audit
+on:
+  push:
+    branches: [research/s20-fixed-mount-gravity-reference-audit]
+  pull_request:
+    branches: [research/s20-depth16-confirmed-alternating-pairs]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sensor-provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install offline scientific computation dependency
+        run: python -m pip install numpy
+      - name: Verify sensor discrepancy is not misrepresented as camera movement
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_unmoved_phone_gravity.py' -v
+      - name: Check camera physical-motion and slope accuracy never asserted
+        run: |
+          grep -q '"physical_camera_rotation_established":False' research/sc52a_rgb_multiview/audit_unmoved_phone_gravity.py
+          grep -q '"grade_accuracy_certified":False' research/sc52a_rgb_multiview/audit_unmoved_phone_gravity.py
