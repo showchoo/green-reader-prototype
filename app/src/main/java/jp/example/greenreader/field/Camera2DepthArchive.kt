@@ -28,16 +28,18 @@ object Camera2DepthArchive {
         frames: List<File>,
         frameCsv: String,
         gravityCsv: String,
-        summaryJson: String
+        summaryJson: String,
+        sensorCsv: String,
+        sensorMetadataJson: String
     ): Outcome {
         val stamp=SimpleDateFormat("yyyyMMdd_HHmmss_SSS",Locale.US)
             .format(Date())
         val root="GreenReaderRecords"
         val folder="Session_HW_DEPTH_$stamp/Putt_000/Scan_01_DEPTH16"
         val identity=JSONObject()
-            .put("schema_version",1)
+            .put("schema_version",2)
             .put("record_kind","camera2_depth16_capture")
-            .put("app_version","Precision 11.0 Camera2 Depth研究")
+            .put("app_version","Precision 11.1 Camera2 IMU研究")
             .put("capture_frame_count",frames.size)
             .put("recorded_at_epoch_ms",System.currentTimeMillis())
             .put("metric_slope_certified",false)
@@ -71,6 +73,10 @@ object Camera2DepthArchive {
                 gravityCsv.toByteArray(Charsets.UTF_8))
             writeBytes("camera2_depth_summary.json","application/json",
                 summaryJson.toByteArray(Charsets.UTF_8))
+            writeBytes("camera2_sensor_events.csv","text/csv",
+                sensorCsv.toByteArray(Charsets.UTF_8))
+            writeBytes("camera2_sensor_metadata.json","application/json",
+                sensorMetadataJson.toByteArray(Charsets.UTF_8))
             writeBytes("record_identity.json","application/json",
                 identity.toByteArray(Charsets.UTF_8))
         } else {
@@ -81,6 +87,8 @@ object Camera2DepthArchive {
             File(out,"camera2_depth_frames.csv").writeText(frameCsv)
             File(out,"camera2_gravity.csv").writeText(gravityCsv)
             File(out,"camera2_depth_summary.json").writeText(summaryJson)
+            File(out,"camera2_sensor_events.csv").writeText(sensorCsv)
+            File(out,"camera2_sensor_metadata.json").writeText(sensorMetadataJson)
             File(out,"record_identity.json").writeText(identity)
         }
         // Only the existing explicit Drive opt-in controls upload.
