@@ -1,0 +1,53 @@
+name: Build Green Reader v11.4 native depth aiming guide
+on:
+  push:
+    branches: [research/s20-v114-native-depth-guides-and-version-provenance]
+  pull_request:
+    branches: [research/s20-v113-paired-candidate-observability]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-v114-depth-aiming:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate version 11.4 research sources
+        run: python3 scripts/build_precision_v114_native_guides.py
+      - name: Verify safe native-coordinate guides and archive version
+        run: python3 scripts/verify_precision_v114_native_guides.py
+      - name: Synthetic paired depth edge uncertainty tests
+        run: |
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_paired_elevated_board.py' -v
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_imu_stability.py' -v
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_annotated_board_roi.py' -v
+      - name: Reuse original upgrade-compatible certificate
+        run: python3 scripts/prepare_existing_signing_v73.py
+      - name: Compile all Android JVM tests and APK
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Verify version, package and existing signature
+        run: |
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee /tmp/v114.badging
+          grep -q "versionCode='1140'" /tmp/v114.badging
+          grep -q "name='jp.showchoo.greenreader.precision'" /tmp/v114.badging
+          CERT="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+          test "$CERT" = "2c06a12144ece069f117dc495c49a15e14108e61167ac9befddbfd4c60919fa0"
+          cp "$APK" GreenReaderPrecision-v114-NativeDepthGuide-compatible.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GreenReaderPrecision-v114-NativeDepthGuide-compatible
+          path: GreenReaderPrecision-v114-NativeDepthGuide-compatible.apk
+          if-no-files-found: error
