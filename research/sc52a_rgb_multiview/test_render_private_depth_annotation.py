@@ -25,7 +25,6 @@ class AnnotationViewerTests(unittest.TestCase):
             self.assertFalse(meta["four_corners_independently_verified"])
             self.assertFalse(meta["physical_slope_certified"])
             self.assertIn("完全オフライン",text)
-            self.assertIn("クロ",text.replace("黒","クロ")) if False else None
             self.assertIn("manual_depth_view",text)
             self.assertIn("pointerdown",text)
             self.assertIn("corners_px",text)
@@ -57,11 +56,11 @@ class AnnotationViewerTests(unittest.TestCase):
 
     def test_privacy_escapes_zip_filename_json(self):
         with tempfile.TemporaryDirectory() as d:
-            path=Path(d)/'bad</script><script>.zip'
+            path=Path(d)/'bad<script>alert(1).zip'
             small_fixture(path)
             html,meta=render(path)
             self.assertIn("\\u003c",html)
-            self.assertNotIn("bad</script><script>",html)
+            self.assertNotIn("bad<script>alert(1).zip",html)
             self.assertEqual(meta["zip_name"],path.name)
 
 if __name__=="__main__":unittest.main()
