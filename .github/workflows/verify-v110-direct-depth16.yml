@@ -31,6 +31,8 @@ jobs:
         run: python3 -m unittest discover -s scripts -p 'test_analyze_precision_session_consistency.py' -v
       - name: RGB research Session ZIP manifest consistency tests
         run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_inspect_rgb_sequence.py' -v
+      - name: Packed Camera2 DEPTH16 synthetic archive regressions
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_inspect_camera2_depth16.py' -v
       - name: Set up original upgrade-compatible signing
         run: python3 scripts/prepare_existing_signing_v73.py
       - name: Unit tests
