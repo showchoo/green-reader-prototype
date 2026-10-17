@@ -54,6 +54,33 @@ def frame_median_at(frames,index,needed):
     mad=statistics.median(abs(t-med) for t in good)
     return med if mad<=MAX_TEMPORAL_MAD_MM else None
 
+def persistent_count(frames,index):
+    """Valid repeated depth samples, without claiming distance confidence."""
+    return sum(bool(int(frame[index])&8191) for frame in frames)
+
+def dropout_geometry(lost,baseline_good,grid_w,grid_h):
+    """Diagnostic missing-depth shape; NEVER an inferred board silhouette."""
+    report={"baseline_valid_board_missing_grid_cells":len(lost),
+            "lost_depth_component_bbox_grid":None,
+            "lost_depth_component_cells":0,
+            "lost_depth_component_share":0.0,
+            "lost_depth_touches_baseline_blind_zone":False,
+            "lost_depth_touches_frame_edge":False,
+            "dropout_is_board_silhouette_verified":False}
+    groups=components(lost)
+    if not groups:return report
+    main=groups[0]
+    report["lost_depth_component_cells"]=len(main)
+    report["lost_depth_component_share"]=round0(len(main)/len(lost),4)
+    xs=[k[0] for k in main];ys=[k[1] for k in main]
+    report["lost_depth_component_bbox_grid"]=[min(xs),min(ys),max(xs),max(ys)]
+    report["lost_depth_touches_frame_edge"]=min(xs)==0 or min(ys)==0 or max(xs)==grid_w-1 or max(ys)==grid_h-1
+    report["lost_depth_touches_baseline_blind_zone"]=any(
+        (gx+dx,gy+dy) not in baseline_good
+        for gx,gy in main for dx,dy in ((1,0),(-1,0),(0,1),(0,-1))
+        if 0<=gx+dx<grid_w and 0<=gy+dy<grid_h)
+    return report
+
 def components(nodes):
     remaining=set(nodes)
     result=[]
@@ -121,6 +148,9 @@ def analyze_pair(empty_zip,board_zip):
     required_e=max(3,math.ceil(len(e["raw_frames"])*MIN_RETAINED_FRACTION))
     required_b=max(3,math.ceil(len(b["raw_frames"])*MIN_RETAINED_FRACTION))
     candidates=set();background=[];deltas=[]
+    baseline_good=set();lost_depth=set();gained_depth=set()
+    grid_w=(width+STEP-1)//STEP
+    grid_h=(height+STEP-1)//STEP
     valid_pairs=0
     total=((height+STEP-1)//STEP)*((width+STEP-1)//STEP)
     for gy,y in enumerate(range(0,height,STEP)):
@@ -128,6 +158,12 @@ def analyze_pair(empty_zip,board_zip):
             idx=y*width+x
             de=frame_median_at(e["raw_frames"],idx,required_e)
             db=frame_median_at(b["raw_frames"],idx,required_b)
+            key=(gx,gy)
+            if de is not None:baseline_good.add(key)
+            if de is not None and db is None and persistent_count(b["raw_frames"],idx)<=len(b["raw_frames"])//4:
+                lost_depth.add(key)
+            if de is None and db is not None and persistent_count(e["raw_frames"],idx)<=len(e["raw_frames"])//4:
+                gained_depth.add(key)
             if de is None or db is None:continue
             valid_pairs+=1
             nx=(x-cx)/fx;ny=(y-cy)/fy
@@ -137,6 +173,10 @@ def analyze_pair(empty_zip,board_zip):
             if abs(dz)<=12:background.append(dz)
             elif BOARD_Z_DELTA_RANGE[0]<=dz<=BOARD_Z_DELTA_RANGE[1]:
                 candidates.add((gx,gy))
+    result.update(dropout_geometry(lost_depth,baseline_good,grid_w,grid_h))
+    result["newly_valid_grid_cells"]=len(gained_depth)
+    result["baseline_persistently_valid_grid_cells"]=len(baseline_good)
+    result["lost_fraction_of_baseline_valid"]=round0(len(lost_depth)/len(baseline_good)) if baseline_good else None
     result["sampled_overlap_pixels"]=valid_pairs
     result["sampled_grid_pixels"]=total
     result["paired_valid_fraction"]=round0(valid_pairs/total)
@@ -156,7 +196,11 @@ def analyze_pair(empty_zip,board_zip):
     fraction=len(candidates)/valid_pairs
     result["candidate_fraction_of_matched"]=round0(fraction,5)
     if not MIN_CANDIDATE_FRACTION<=fraction<=MAX_CANDIDATE_FRACTION:
-        result["reason"]="candidate_fraction_not_plausible";return result
+        if fraction<MIN_CANDIDATE_FRACTION and result["lost_depth_component_cells"]>=25:
+            result["reason"]="depth_disappearance_observed_without_confirmed_range_step"
+        else:
+            result["reason"]="candidate_fraction_not_plausible"
+        return result
     groups=components(candidates)
     if not groups or len(groups[0])<MIN_COMPONENT_PIXELS:
         result["reason"]="no_large_contiguous_depth_change";return result
