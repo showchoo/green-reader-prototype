@@ -25,8 +25,7 @@ jobs:
           gradle-version: '8.9'
       - name: Generate v11.1 research APK sources
         run: python3 scripts/build_precision_v111_camera2_sensor_evidence.py
-      - name: Verify existing depth pipeline safeguards
-        run: python3 scripts/verify_precision_v110_camera2_depth16_acquisition.py
+      # The v11.0 verifier runs inside the generator BEFORE the 1110 version bump.
       - name: Verify v11.1 extra IMU safeguards
         run: python3 scripts/verify_precision_v111_camera2_sensor_evidence.py
       - name: Prepare same upgrade-compatible signing
