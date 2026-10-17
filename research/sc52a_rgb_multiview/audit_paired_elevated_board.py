@@ -81,6 +81,29 @@ def dropout_geometry(lost,baseline_good,grid_w,grid_h):
         if 0<=gx+dx<grid_w and 0<=gy+dy<grid_h)
     return report
 
+def candidate_contour_observability(component,paired_good):
+    """Count visible/missing adjacent pixels around candidate boundary (grid)."""
+    neighbors=((1,0),(-1,0),(0,1),(0,-1))
+    sides={side:{"total":0,"unobserved":0} for side in ("left","right","top","bottom")}
+    for x,y in component:
+        for dx,dy in neighbors:
+            outside=(x+dx,y+dy)
+            if outside in component:continue
+            side="left" if dx<0 else "right" if dx>0 else "top" if dy<0 else "bottom"
+            sides[side]["total"]+=1
+            if outside not in paired_good:
+                sides[side]["unobserved"]+=1
+    total=sum(v["total"] for v in sides.values())
+    unseen=sum(v["unobserved"] for v in sides.values())
+    return {
+        "candidate_boundary_edges_total":total,
+        "candidate_boundary_edges_unobserved":unseen,
+        "candidate_boundary_unobserved_fraction":round0(unseen/total) if total else 1.0,
+        "candidate_boundary_by_side":sides,
+        "candidate_four_sides_observable":bool(total and all(v["total"]>0 and
+            v["unobserved"]/v["total"]<=.15 for v in sides.values()))
+    }
+
 def components(nodes):
     remaining=set(nodes)
     result=[]
@@ -148,7 +171,7 @@ def analyze_pair(empty_zip,board_zip):
     required_e=max(3,math.ceil(len(e["raw_frames"])*MIN_RETAINED_FRACTION))
     required_b=max(3,math.ceil(len(b["raw_frames"])*MIN_RETAINED_FRACTION))
     candidates=set();background=[];deltas=[]
-    baseline_good=set();lost_depth=set();gained_depth=set()
+    baseline_good=set();paired_good=set();lost_depth=set();gained_depth=set()
     grid_w=(width+STEP-1)//STEP
     grid_h=(height+STEP-1)//STEP
     valid_pairs=0
@@ -165,6 +188,7 @@ def analyze_pair(empty_zip,board_zip):
             if de is None and db is not None and persistent_count(e["raw_frames"],idx)<=len(e["raw_frames"])//4:
                 gained_depth.add(key)
             if de is None or db is None:continue
+            paired_good.add(key)
             valid_pairs+=1
             nx=(x-cx)/fx;ny=(y-cy)/fy
             factor=math.sqrt(1+nx*nx+ny*ny)
@@ -213,10 +237,13 @@ def analyze_pair(empty_zip,board_zip):
     gxmax=(width-1)//STEP;gymax=(height-1)//STEP
     bbox=[min(xx),min(yy),max(xx),max(yy)]
     result["candidate_bbox_grid"]=bbox
+    result.update(candidate_contour_observability(primary,paired_good))
     if bbox[0]<=2 or bbox[1]<=2 or bbox[2]>=gxmax-2 or bbox[3]>=gymax-2:
         result["reason"]="depth_change_touches_image_edge";return result
     result["depth_change_median_optical_z_mm"]=round0(
         percentile([d for d in deltas if BOARD_Z_DELTA_RANGE[0]<=d<=BOARD_Z_DELTA_RANGE[1]],50),3)
+    if not result["candidate_four_sides_observable"]:
+        result["reason"]="candidate_boundary_depth_unobserved";return result
     if not orientation_guard_passed:
         result["reason"]="camera_orientation_drift_cannot_be_excluded";return result
     result["status"]="unverified_board_like_depth_change_candidate"
