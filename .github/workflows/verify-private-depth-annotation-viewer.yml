@@ -1,0 +1,25 @@
+name: Verify private DEPTH16 annotation viewer offline
+on:
+  push:
+    branches: [research/s20-v111-private-depth-annotation-viewer]
+  pull_request:
+    branches: [research/s20-v111-annotated-board-roi-audit]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-privacy-and-annotation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify private offline viewer with synthetic ZIP fixtures
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_render_private_depth_annotation.py' -v
+      - name: Verify strict annotated plane research
+        run: python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_annotated_board_roi.py' -v
+      - name: Verify previous surface/temporal confidence evidence tests
+        run: |
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_surface_identifiability.py' -v
+          python3 -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_depth16_confidence_stability.py' -v
+      - name: Syntax compilation
+        run: python3 -m py_compile research/sc52a_rgb_multiview/render_private_depth_annotation.py
