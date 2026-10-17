@@ -55,3 +55,17 @@ Success criterion for a **preliminary R&D GO**, not a product PASS: actual measu
 Authoritative Camera2 field documentation:
 - https://developer.android.com/reference/android/graphics/ImageFormat
 - https://developer.android.com/reference/android/hardware/camera2/CameraCharacteristics
+
+
+## Temporal early/late holdout in the identical ROI
+
+Using only the optical-axis interpretation and the same preselected x350..620, y80..400 region, compare robust plane normals from frames 1–5 and 6–11 of the *11 nonempty frames*. These two portions have no overlapping timestamps:
+
+| User session | Angle between early/late median normals | Hypothetical unsigned grade change `100*tan(angle)` |
+| --- | ---: | ---: |
+| Hand-held, 22:24 | **0.39752°** | **0.6938%** |
+| Mechanically fixed, 22:48 | **0.00429°** | **0.0075%** |
+
+Across all fixed frames in this selected ROI, the largest departure of a single-frame normal from the session median is about **0.0283°**. For hand-held frames it is about **0.4937°**. Fixed-session orthogonal plane-fit p50/p90 residuals within that ROI are approximately **2.91/6.51mm**.
+
+These are **repeatability diagnostics in a particular candidate planar region under one unchanged setup**, not a physical ground-truth grade error, nor evidence of green-surface accuracy. Device stillness, scene selection, lens model bias, and sensor code-2 confidence remain limiting. Their value is that the acquisition has sufficient *internal angular stability* to justify one measured relative-incline experiment without another APK.
