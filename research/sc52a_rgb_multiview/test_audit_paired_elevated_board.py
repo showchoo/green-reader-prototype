@@ -21,7 +21,8 @@ def csv_text(fields,rows):
     return s.getvalue()
 
 def make_zip(path,board=False,global_shift=0,motion=0,empty_holes=False,
-             camera="4",source=1,board_touches_edges=False):
+             camera="4",source=1,board_touches_edges=False,
+             board_depth_disappears=False,baseline_left_blind=False):
     files={};rows=[]
     for frame in range(1,6):
         data=[];valid=0
@@ -29,6 +30,8 @@ def make_zip(path,board=False,global_shift=0,motion=0,empty_holes=False,
             for x in range(WIDTH):
                 raised=(40<=x<120 and (board_touches_edges or 28<=y<92))
                 z=1200+global_shift-(50 if board and raised else 0)
+                if baseline_left_blind and x<40:z=0
+                if board and raised and board_depth_disappears:z=0
                 if empty_holes and x<WIDTH*.85:z=0
                 if z>0:
                     radial=z*math.sqrt(1+((x-INTR[2])/INTR[0])**2+((y-INTR[3])/INTR[1])**2)
@@ -147,6 +150,29 @@ class PairedBoardTests(unittest.TestCase):
             self.assertEqual(r["reason"],"depth_change_touches_image_edge")
             self.assertGreater(r["candidate_range_change_pixels"],0)
             self.assertFalse(r["physical_grade_accuracy_certified"])
+
+    def test_depth_disappearance_is_recorded_without_inventing_a_height(self):
+        with tempfile.TemporaryDirectory() as d:
+            e,b=Path(d)/"empty.zip",Path(d)/"board.zip"
+            make_zip(e);make_zip(b,board=True,board_depth_disappears=True)
+            r=analyze_pair(e,b)
+            self.assertEqual(r["status"],"unresolved",r)
+            self.assertEqual(r["reason"],"depth_disappearance_observed_without_confirmed_range_step",r)
+            self.assertGreater(r["lost_depth_component_cells"],30)
+            self.assertGreater(r["lost_depth_component_share"],0.9)
+            self.assertFalse(r["dropout_is_board_silhouette_verified"])
+            self.assertFalse(r["physical_grade_accuracy_certified"])
+            self.assertIsNone(r["measured_board_height_mm"])
+
+    def test_dropout_adjacent_to_existing_blind_zone_is_flagged(self):
+        with tempfile.TemporaryDirectory() as d:
+            e,b=Path(d)/"empty.zip",Path(d)/"board.zip"
+            make_zip(e,baseline_left_blind=True)
+            make_zip(b,board=True,board_depth_disappears=True,baseline_left_blind=True)
+            r=analyze_pair(e,b)
+            self.assertGreater(r["lost_depth_component_cells"],20)
+            self.assertTrue(r["lost_depth_touches_baseline_blind_zone"],r)
+            self.assertFalse(r["dropout_is_board_silhouette_verified"])
 
     def test_same_file_cannot_be_empty_and_board(self):
         with tempfile.TemporaryDirectory() as d:
