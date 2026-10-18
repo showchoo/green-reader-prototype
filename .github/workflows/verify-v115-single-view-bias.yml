@@ -1,0 +1,29 @@
+name: Verify v11.5 single-view floor-curvature research
+on:
+  push:
+    branches: [research/s20-v115-single-view-surface-bias-checks]
+  pull_request:
+    branches: [research/s20-v115-height-quality-and-holdout-gates]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-bias-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated research dependencies
+        run: python -m pip install 'numpy>=1.26,<3' 'scipy>=1.12,<2'
+      - name: Run single-view height and blank-floor falsification tests
+        run: python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_single_view_local_surface.py' -v
+      - name: Preserve prior paired DEPTH16 and IMU gates
+        run: |
+          python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_height_quality_gates.py' -v
+          python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_estimate_relative_board_height.py' -v
+          python -m unittest discover -s research/sc52a_rgb_multiview -p 'test_audit_paired_elevated_board.py' -v
+      - name: Compile
+        run: python -m py_compile research/sc52a_rgb_multiview/audit_single_view_local_surface.py
